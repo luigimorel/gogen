@@ -40,25 +40,54 @@ This command will create a new directory, initialize a Go module, and create a n
 				Usage:   "Router type for API/web projects (stdlib, chi, gorilla, httprouter)",
 				Value:   "stdlib",
 			},
+			&cli.StringFlag{
+				Name:    "frontend",
+				Aliases: []string{"fe"},
+				Usage:   "Frontend framework for web projects (react, vue, svelte, solidjs, angular)",
+			},
+			&cli.StringFlag{
+				Name:  "dir",
+				Usage: "Directory name for the project (default: project name)",
+			},
+			&cli.BoolFlag{
+				Name:  "ts",
+				Usage: "Use TypeScript for frontend projects (only applicable with --frontend)",
+				Value: false,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			projectName := c.String("name")
 			moduleName := c.String("module")
 			template := c.String("template")
 			router := c.String("router")
+			frontend := c.String("frontend")
+			projectDir := c.String("dir")
+			useTypeScript := c.Bool("ts")
+
+			if frontend != "" && template != "web" {
+				return fmt.Errorf("frontend flag is only applicable when template is 'web'")
+			}
+
+			if useTypeScript && frontend == "" {
+				return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
+			}
 
 			if moduleName == "" {
 				moduleName = projectName
 			}
 
+			if projectDir == "" {
+				projectDir = projectName
+			}
+
 			fmt.Printf("Creating new Go project '%s'...\n", projectName)
 
-			if err := os.Mkdir(projectName, 0755); err != nil {
+			if err := os.Mkdir(projectDir, 0755); err != nil {
 				return fmt.Errorf("failed to create project directory: %w", err)
 			}
 
 			originalDir, _ := os.Getwd()
-			if err := os.Chdir(projectName); err != nil {
+			if err := os.Chdir(projectDir); err != nil {
 				return fmt.Errorf("failed to change to project directory: %w", err)
 			}
 			defer func() {
@@ -75,16 +104,22 @@ This command will create a new directory, initialize a Go module, and create a n
 				return fmt.Errorf("failed to initialize go module: %w", err)
 			}
 
-			if err := createProjectFiles(projectName, moduleName, template, router); err != nil {
+			if err := createProjectFiles(projectName, moduleName, template, router, frontend, useTypeScript); err != nil {
 				return fmt.Errorf("failed to create project files: %w", err)
 			}
 
 			fmt.Printf("Project '%s' created successfully\n", projectName)
-			fmt.Printf("Location: %s\n", filepath.Join(originalDir, projectName))
+			fmt.Printf("Location: %s\n", filepath.Join(originalDir, projectDir))
 			fmt.Printf("Template: %s\n", template)
 			fmt.Printf("Router: %s\n", router)
+			if frontend != "" {
+				fmt.Printf("Frontend: %s\n", frontend)
+				if useTypeScript {
+					fmt.Println("TypeScript: enabled")
+				}
+			}
 			fmt.Println("\nNext steps:")
-			fmt.Printf("   cd %s\n", projectName)
+			fmt.Printf("   cd %s\n", projectDir)
 			fmt.Println("   go mod tidy")
 			fmt.Println("   go run main.go")
 
@@ -93,12 +128,12 @@ This command will create a new directory, initialize a Go module, and create a n
 	}
 }
 
-func createProjectFiles(projectName, moduleName, template, router string) error {
+func createProjectFiles(projectName, moduleName, template, router, frontend string, useTypeScript bool) error {
 	switch template {
 	case "cli":
 		return createCLIProject(projectName, moduleName)
 	case "web":
-		return createWebProject(projectName, moduleName, router)
+		return createWebProject(projectName, moduleName, router, frontend, useTypeScript)
 	case "api":
 		return createAPIProject(projectName, moduleName, router)
 	default:
@@ -158,8 +193,7 @@ func main() {
 	return cmd.Run()
 }
 
-func createWebProject(projectName, moduleName, router string) error {
-	// Create cmd/web directory
+func createWebProject(projectName, moduleName, router, frontend string, useTypeScript bool) error {
 	if err := os.MkdirAll("cmd/web", 0755); err != nil {
 		return fmt.Errorf("failed to create cmd/web directory: %w", err)
 	}
@@ -382,7 +416,12 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command("go", "mod", "tidy")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to tidy go.mod file: %w", err)
+	}
 
+	if frontend != "" {
+		if err := createFrontendProject(frontend, "frontend", useTypeScript); err != nil {
+			return fmt.Errorf("failed to create frontend project: %w", err)
+		}
 	}
 
 	return nil
