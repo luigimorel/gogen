@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -99,8 +98,6 @@ func validateFrontendSetup(frameworkType string) error {
 		if !commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
 			cmd := exec.Command("npm", "install", "-g", "@angular/cli")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to install Angular CLI: %w", err)
 			}
@@ -189,27 +186,6 @@ func createFrontendProject(frameworkType, dirName string, useTypeScript bool) er
 		if err := installCmd.Run(); err != nil {
 			return fmt.Errorf("failed to install dependencies: %w", err)
 		}
-	}
-
-	if err := createEnvFile(dirName); err != nil {
-		return fmt.Errorf("failed to create .env file: %w", err)
-	}
-
-	return nil
-}
-
-func createEnvFile(dirName string) error {
-	envContent := `
-VITE_API_URL=http://localhost:8080
-VITE_API_BASE_PATH=/api
-
-# Development
-VITE_NODE_ENV=development
-`
-
-	envPath := filepath.Join(dirName, ".env.example")
-	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
-		fmt.Printf("Warning: failed to create .env.example: %v\n", err)
 	}
 
 	return nil

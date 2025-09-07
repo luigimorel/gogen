@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/luigimorel/gogen/internals/utils"
 	"github.com/urfave/cli/v2"
 )
 
@@ -160,43 +161,44 @@ func createCLIProject(projectName, moduleName string) error {
 	mainContent := fmt.Sprintf(`package main
 
 import (
-	"log"
-	"os"
+    "fmt"
+    "log"
+    "os"
 
-	"github.com/urfave/cli/v2"
+    "github.com/urfave/cli/v2"
 )
 
 func main() {
-	app := &cli.App{
-		Name:  "%s",
-		Usage: "A CLI application built with gogen",
-		Action: func(c *cli.Context) error {
-			return cli.ShowAppHelp(c)
-		},
-		Commands: []*cli.Command{
-			{
-				Name:    "greet",
-				Aliases: []string{"g"},
-				Usage:   "Greet someone",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "name",
-						Value: "World",
-						Usage: "Name to greet",
-					},
-				},
-				Action: func(c *cli.Context) error {
-					name := c.String("name")
-					fmt.Printf("Hello %%s\n", name)
-					return nil
-				},
-			},
-		},
-	}
+    app := &cli.App{
+        Name:  "%s",
+        Usage: "A CLI application built with gogen",
+        Action: func(c *cli.Context) error {
+            return cli.ShowAppHelp(c)
+        },
+        Commands: []*cli.Command{
+            {
+                Name:    "greet",
+                Aliases: []string{"g"},
+                Usage:   "Greet someone",
+                Flags: []cli.Flag{
+                    &cli.StringFlag{
+                        Name:  "name",
+                        Value: "World",
+                        Usage: "Name to greet",
+                    },
+                },
+                Action: func(c *cli.Context) error {
+                    name := c.String("name")
+                    fmt.Printf("Hello %%s\n", name)
+                    return nil
+                },
+            },
+        },
+    }
 
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
-	}
+    if err := app.Run(os.Args); err != nil {
+        log.Fatal(err)
+    }
 }
 `, projectName)
 
@@ -204,7 +206,11 @@ func main() {
 		return err
 	}
 
-	cmd := exec.Command("go", "get", "github.com/urfave/cli/v2")
+	if err := utils.InitGitRepository(projectName, "cli"); err != nil {
+		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
+	}
+
+	cmd := exec.Command("go", "mod", "tidy")
 	return cmd.Run()
 }
 
@@ -433,6 +439,10 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		return err
 	}
 
+	if err := utils.InitGitRepository(projectName, "web"); err != nil {
+		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
+	}
+
 	originalDir, _ := os.Getwd()
 	if err := os.Chdir("api"); err != nil {
 		return fmt.Errorf("failed to change to api directory: %w", err)
@@ -451,6 +461,10 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	if frontend != "" {
 		if err := createFrontendProject(frontend, "frontend", useTypeScript); err != nil {
 			return fmt.Errorf("failed to create frontend project: %w", err)
+		}
+
+		if err := utils.CreateEnvFile("frontend"); err != nil {
+			fmt.Printf("Warning: failed to create env file: %v\n", err)
 		}
 	}
 
@@ -727,6 +741,14 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := os.WriteFile("cmd/api/routes.go", []byte(routesContent), 0644); err != nil {
 		return err
+	}
+
+	if err := utils.CreateEnvFile("api"); err != nil {
+		fmt.Printf("Warning: failed to create env file: %v\n", err)
+	}
+
+	if err := utils.InitGitRepository(projectName, "api"); err != nil {
+		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
 	cmd := exec.Command("go", "mod", "tidy")
