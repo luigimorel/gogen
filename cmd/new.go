@@ -34,11 +34,18 @@ This command will create a new directory, initialize a Go module, and create a n
 				Usage:   "Project template (cli, web, api)",
 				Value:   "api",
 			},
+			&cli.StringFlag{
+				Name:    "router",
+				Aliases: []string{"r"},
+				Usage:   "Router type for API/web projects (stdlib, chi, gorilla, httprouter)",
+				Value:   "stdlib",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			projectName := c.String("name")
 			moduleName := c.String("module")
 			template := c.String("template")
+			router := c.String("router")
 
 			if moduleName == "" {
 				moduleName = projectName
@@ -61,22 +68,24 @@ This command will create a new directory, initialize a Go module, and create a n
 			}()
 
 			fmt.Printf("Initializing Go module '%s'...\n", moduleName)
-			cmd := exec.Command("go", "mod", "init", moduleName)
+			cmd := exec.Command("go", "mod", "init", "github.com/"+moduleName)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to initialize go module: %w", err)
 			}
 
-			if err := createProjectFiles(projectName, moduleName, template); err != nil {
+			if err := createProjectFiles(projectName, moduleName, template, router); err != nil {
 				return fmt.Errorf("failed to create project files: %w", err)
 			}
 
-			fmt.Printf("Project '%s' created successfully!\n", projectName)
+			fmt.Printf("Project '%s' created successfully\n", projectName)
 			fmt.Printf("Location: %s\n", filepath.Join(originalDir, projectName))
 			fmt.Printf("Template: %s\n", template)
+			fmt.Printf("Router: %s\n", router)
 			fmt.Println("\nNext steps:")
 			fmt.Printf("   cd %s\n", projectName)
+			fmt.Println("   go mod tidy")
 			fmt.Println("   go run main.go")
 
 			return nil
@@ -84,14 +93,14 @@ This command will create a new directory, initialize a Go module, and create a n
 	}
 }
 
-func createProjectFiles(projectName, moduleName, template string) error {
+func createProjectFiles(projectName, moduleName, template, router string) error {
 	switch template {
 	case "cli":
 		return createCLIProject(projectName, moduleName)
 	case "web":
-		return createWebProject(projectName, moduleName)
+		return createWebProject(projectName, moduleName, router)
 	case "api":
-		return createAPIProject(projectName, moduleName)
+		return createAPIProject(projectName, moduleName, router)
 	default:
 		return fmt.Errorf("unsupported template: %s", template)
 	}
@@ -128,7 +137,7 @@ func main() {
 				},
 				Action: func(c *cli.Context) error {
 					name := c.String("name")
-					fmt.Printf("Hello %%s!\n", name)
+					fmt.Printf("Hello %%s\n", name)
 					return nil
 				},
 			},
@@ -149,74 +158,512 @@ func main() {
 	return cmd.Run()
 }
 
-func createWebProject(projectName, moduleName string) error {
-	mainContent := `package main
+func createWebProject(projectName, moduleName, router string) error {
+	// Create cmd/web directory
+	if err := os.MkdirAll("cmd/web", 0755); err != nil {
+		return fmt.Errorf("failed to create cmd/web directory: %w", err)
+	}
+
+	var mainContent string
+	var routesContent string
+
+	switch router {
+	case "chi":
+		mainContent = `package main
 
 import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/` + moduleName + `/cmd/web"
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello from ` + projectName + ` web server!")
-	})
+	r := web.SetupRoutes()
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "OK")
-	})
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, r))
+}
+`
+		routesContent = `package web
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+)
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *chi.Mux {
+	r := chi.NewRouter()
+	
+	// Middleware
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+
+	// Routes
+	r.Get("/", homeHandler)
+	r.Get("/health", healthHandler)
+
+	return r
+}
+
+// homeHandler handles the home page
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+`
+
+	case "gorilla":
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/web"
+)
+
+func main() {
+	r := web.SetupRoutes()
+
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, r))
+}
+`
+		routesContent = `package web
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/gorilla/mux"
+)
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *mux.Router {
+	r := mux.NewRouter()
+
+	// Routes
+	r.HandleFunc("/", homeHandler).Methods("GET")
+	r.HandleFunc("/health", healthHandler).Methods("GET")
+
+	return r
+}
+
+// homeHandler handles the home page
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+`
+
+	case "httprouter":
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/web"
+)
+
+func main() {
+	router := web.SetupRoutes()
+
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, router))
+}
+`
+		routesContent = `package web
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/julienschmidt/httprouter"
+)
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *httprouter.Router {
+	router := httprouter.New()
+
+	// Routes
+	router.GET("/", homeHandler)
+	router.GET("/health", healthHandler)
+
+	return router
+}
+
+// homeHandler handles the home page
+func homeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+`
+
+	default: // stdlib
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/web"
+)
+
+func main() {
+	web.SetupRoutes()
 
 	port := ":8080"
 	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 `
-
-	return os.WriteFile("main.go", []byte(mainContent), 0644)
-}
-
-func createAPIProject(projectName, moduleName string) error {
-	mainContent := fmt.Sprintf(`package main
+		routesContent = `package web
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 )
 
-type Response struct {
-	Message string `+"`"+`json:"message"`+"`"+`
-	Service string `+"`"+`json:"service"`+"`"+`
+// SetupRoutes configures all HTTP routes
+func SetupRoutes() {
+	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/health", healthHandler)
 }
+
+// homeHandler handles the home page
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
+}
+`
+	}
+
+	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile("cmd/web/routes.go", []byte(routesContent), 0644); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("go", "mod", "tidy")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to tidy go.mod file: %w", err)
+
+	}
+
+	return nil
+}
+
+func createAPIProject(projectName, moduleName, router string) error {
+	if err := os.MkdirAll("cmd/api", 0755); err != nil {
+		return fmt.Errorf("failed to create cmd/api directory: %w", err)
+	}
+
+	var mainContent string
+	var routesContent string
+
+	responseStruct := `type Response struct {
+	Message string ` + "`" + `json:"message"` + "`" + `
+	Service string ` + "`" + `json:"service"` + "`" + `
+}`
+
+	switch router {
+	case "chi":
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/api"
+)
 
 func main() {
-	http.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		response := Response{
-			Message: "Hello from %s API!",
-			Service: "%s",
-		}
-		json.NewEncoder(w).Encode(response)
-	})
-
-	http.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		response := Response{
-			Message: "API is healthy",
-			Service: "%s",
-		}
-		json.NewEncoder(w).Encode(response)
-	})
+	r := api.SetupRoutes()
 
 	port := ":8080"
-	fmt.Printf("Starting %s API server on http://localhost%%s\n", port)
+	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, r))
+}
+`
+		routesContent = fmt.Sprintf(`package api
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+)
+
+%s
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *chi.Mux {
+	r := chi.NewRouter()
+	
+	// Middleware
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.SetHeader("Content-Type", "application/json"))
+
+	// Routes
+	r.Get("/api/hello", helloHandler)
+	r.Get("/api/health", healthHandler)
+
+	return r
+}
+
+// helloHandler handles the hello endpoint
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	response := Response{
+		Message: "Hello from %s API",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	response := Response{
+		Message: "API is healthy",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+`, responseStruct, projectName, projectName, projectName)
+
+	case "gorilla":
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/api"
+)
+
+func main() {
+	r := api.SetupRoutes()
+
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, r))
+}
+`
+		routesContent = fmt.Sprintf(`package api
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/gorilla/mux"
+)
+
+%s
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *mux.Router {
+	r := mux.NewRouter()
+
+	// Routes
+	r.HandleFunc("/api/hello", helloHandler).Methods("GET")
+	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+
+	return r
+}
+
+// helloHandler handles the hello endpoint
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	response := Response{
+		Message: "Hello from %s API",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := Response{
+		Message: "API is healthy",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+`, responseStruct, projectName, projectName, projectName)
+
+	case "httprouter":
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/api"
+)
+
+func main() {
+	router := api.SetupRoutes()
+
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
+	log.Fatal(http.ListenAndServe(port, router))
+}
+`
+		routesContent = fmt.Sprintf(`package api
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/julienschmidt/httprouter"
+)
+
+%s
+
+// SetupRoutes configures and returns the router with all routes
+func SetupRoutes() *httprouter.Router {
+	router := httprouter.New()
+
+	// Routes
+	router.GET("/api/hello", helloHandler)
+	router.GET("/api/health", healthHandler)
+
+	return router
+}
+
+// helloHandler handles the hello endpoint
+func helloHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	response := Response{
+		Message: "Hello from %s API",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := Response{
+		Message: "API is healthy",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+`, responseStruct, projectName, projectName, projectName)
+
+	default: // stdlib
+		mainContent = `package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/` + moduleName + `/cmd/api"
+)
+
+func main() {
+	api.SetupRoutes()
+
+	port := ":8080"
+	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
-`, projectName, projectName, projectName, projectName)
+`
+		routesContent = fmt.Sprintf(`package api
 
-	return os.WriteFile("main.go", []byte(mainContent), 0644)
+import (
+	"encoding/json"
+	"net/http"
+)
+
+%s
+
+// SetupRoutes configures all HTTP routes
+func SetupRoutes() {
+	http.HandleFunc("/api/hello", helloHandler)
+	http.HandleFunc("/api/health", healthHandler)
+}
+
+// helloHandler handles the hello endpoint
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	response := Response{
+		Message: "Hello from %s API",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+// healthHandler handles the health check endpoint
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := Response{
+		Message: "API is healthy",
+		Service: "%s",
+	}
+	json.NewEncoder(w).Encode(response)
+}
+`, responseStruct, projectName, projectName, projectName)
+	}
+
+	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile("cmd/api/routes.go", []byte(routesContent), 0644); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("go", "mod", "tidy")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to tidy go.mod: %w", err)
+	}
+
+	return nil
 }

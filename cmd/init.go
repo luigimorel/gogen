@@ -14,6 +14,7 @@ func App() *cli.App {
 		Commands: []*cli.Command{
 			NewCommand(),
 			InstallCommand(),
+			RouterCommand(),
 		},
 	}
 }

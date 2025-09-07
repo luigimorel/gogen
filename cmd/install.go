@@ -220,6 +220,6 @@ func printPathInstructions(binDir string) {
 			fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
 		}
 		fmt.Println("Then restart your terminal or run 'source ~/.bashrc' (or equivalent)")
-		fmt.Println("After that, you can run 'gogen --help' from anywhere!")
+		fmt.Println("After that, you can run 'gogen --help' from anywhere")
 	}
 }
