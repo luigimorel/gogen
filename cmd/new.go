@@ -97,11 +97,14 @@ This command will create a new directory, initialize a Go module, and create a n
 			}()
 
 			fmt.Printf("Initializing Go module '%s'...\n", moduleName)
-			cmd := exec.Command("go", "mod", "init", "github.com/"+moduleName)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to initialize go module: %w", err)
+
+			if template != "web" {
+				cmd := exec.Command("go", "mod", "init", "github.com/"+moduleName)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("failed to initialize go module: %w", err)
+				}
 			}
 
 			if err := createProjectFiles(projectName, moduleName, template, router, frontend, useTypeScript); err != nil {
@@ -120,8 +123,20 @@ This command will create a new directory, initialize a Go module, and create a n
 			}
 			fmt.Println("\nNext steps:")
 			fmt.Printf("   cd %s\n", projectDir)
-			fmt.Println("   go mod tidy")
-			fmt.Println("   go run main.go")
+			if template == "web" {
+				fmt.Println("   cd api")
+				fmt.Println("   go mod tidy")
+				fmt.Println("   go run main.go")
+				if frontend != "" {
+					fmt.Println("\n   # In another terminal:")
+					fmt.Println("   cd frontend")
+					fmt.Println("   npm install")
+					fmt.Println("   npm run dev")
+				}
+			} else {
+				fmt.Println("   go mod tidy")
+				fmt.Println("   go run main.go")
+			}
 
 			return nil
 		},
@@ -194,8 +209,8 @@ func main() {
 }
 
 func createWebProject(projectName, moduleName, router, frontend string, useTypeScript bool) error {
-	if err := os.MkdirAll("cmd/web", 0755); err != nil {
-		return fmt.Errorf("failed to create cmd/web directory: %w", err)
+	if err := os.MkdirAll("api/cmd/web", 0755); err != nil {
+		return fmt.Errorf("failed to create api/cmd/web directory: %w", err)
 	}
 
 	var mainContent string
@@ -210,7 +225,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/` + moduleName + `/cmd/web"
+	"github.com/` + moduleName + `/api/cmd/web"
 )
 
 func main() {
@@ -266,7 +281,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/` + moduleName + `/cmd/web"
+	"github.com/` + moduleName + `/api/cmd/web"
 )
 
 func main() {
@@ -317,7 +332,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/` + moduleName + `/cmd/web"
+	"github.com/` + moduleName + `/api/cmd/web"
 )
 
 func main() {
@@ -368,7 +383,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/` + moduleName + `/cmd/web"
+	"github.com/` + moduleName + `/api/cmd/web"
 )
 
 func main() {
@@ -405,17 +420,32 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 `
 	}
 
-	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+	if err := os.WriteFile("api/main.go", []byte(mainContent), 0644); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile("cmd/web/routes.go", []byte(routesContent), 0644); err != nil {
+	if err := os.WriteFile("api/cmd/web/routes.go", []byte(routesContent), 0644); err != nil {
 		return err
+	}
+
+	apiModContent := fmt.Sprintf("module github.com/%s/api\n\ngo 1.21\n", moduleName)
+	if err := os.WriteFile("api/go.mod", []byte(apiModContent), 0644); err != nil {
+		return err
+	}
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir("api"); err != nil {
+		return fmt.Errorf("failed to change to api directory: %w", err)
 	}
 
 	cmd := exec.Command("go", "mod", "tidy")
 	if err := cmd.Run(); err != nil {
+		os.Chdir(originalDir)
 		return fmt.Errorf("failed to tidy go.mod file: %w", err)
+	}
+
+	if err := os.Chdir(originalDir); err != nil {
+		return fmt.Errorf("failed to change back to original directory: %w", err)
 	}
 
 	if frontend != "" {
