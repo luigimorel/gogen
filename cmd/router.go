@@ -22,23 +22,24 @@ func NewRouter(routerType string, updateMain bool) *Router {
 
 func RouterCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "router",
-		Usage: "Add a router to your Go project",
+		Name:      "router",
+		Usage:     "Add a router to your Go project",
+		ArgsUsage: "<router-type>",
 		Description: `Add a router to your existing Go project.
 This command will add the selected router dependency and update your main.go file with the router setup.
 
 Supported routers:
 - chi: Chi lightweight router
 - gorilla: Gorilla Mux router
-- stdlib: Plain Go standard library,
-- httprouter: HttpRouter high performance router`,
+- stdlib: Plain Go standard library
+- httprouter: HttpRouter high performance router
+
+Usage:
+  gogen router chi
+  gogen router gorilla
+  gogen router httprouter
+  gogen router stdlib`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "type",
-				Aliases: []string{"t"},
-				Usage:   "Router type (stdlib, chi, gorilla, httprouter)",
-				Value:   "stdlib",
-			},
 			&cli.BoolFlag{
 				Name:    "update",
 				Aliases: []string{"u"},
@@ -47,7 +48,11 @@ Supported routers:
 			},
 		},
 		Action: func(c *cli.Context) error {
-			routerType := c.String("type")
+			if c.NArg() == 0 {
+				return fmt.Errorf("router type is required. Usage: gogen router <router-type>")
+			}
+
+			routerType := c.Args().Get(0)
 			updateMain := c.Bool("update")
 
 			router := NewRouter(routerType, updateMain)

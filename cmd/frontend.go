@@ -25,8 +25,9 @@ func NewFrontendManager(frameworkType, dirName string, useTypeScript bool) *Fron
 
 func FrontendCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "frontend",
-		Usage: "Add a frontend framework to your project",
+		Name:      "frontend",
+		Usage:     "Add a frontend framework to your project",
+		ArgsUsage: "<framework-type>",
 		Description: `Add a frontend framework to your existing project.
 This command will create a frontend directory with the selected framework setup.
 
@@ -35,14 +36,13 @@ Supported frameworks:
 - vue: Vue.js with Vite
 - svelte: Svelte with Vite
 - solidjs: SolidJS with Vite
-- angular: Angular CLI`,
+- angular: Angular CLI
+
+Usage:
+  gogen frontend react
+  gogen frontend vue --typescript
+  gogen frontend svelte --dir client`,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "type",
-				Aliases:  []string{"t"},
-				Usage:    "Frontend framework type (react, vue, svelte, solidjs, angular)",
-				Required: true,
-			},
 			&cli.StringFlag{
 				Name:    "dir",
 				Aliases: []string{"d"},
@@ -57,7 +57,11 @@ Supported frameworks:
 			},
 		},
 		Action: func(c *cli.Context) error {
-			frameworkType := c.String("type")
+			if c.NArg() == 0 {
+				return fmt.Errorf("framework type is required. Usage: gogen frontend <framework-type>")
+			}
+
+			frameworkType := c.Args().Get(0)
 			dirName := c.String("dir")
 			useTypeScript := c.Bool("typescript")
 
