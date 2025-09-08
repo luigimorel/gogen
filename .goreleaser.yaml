@@ -11,7 +11,8 @@ builds:
       - amd64
       - arm64
 archives:
-  - format: tar.gz
+  - format_overrides:
+      - formats: ["tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 release:
   github:
