@@ -4,7 +4,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// App returns the CLI application with all commands
 func App() *cli.App {
 	return &cli.App{
 		Name:        "gogen",

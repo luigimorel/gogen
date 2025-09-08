@@ -3,3 +3,4 @@ main
 bin/
 gogen
 .env
+dist/

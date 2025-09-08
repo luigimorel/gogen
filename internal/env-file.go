@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-func CreateEnvFile(dirName string) error {
+func (pg *ProjectGenerator) CreateEnvFile(dirName string) error {
 	var envContent string
 	if dirName == "api" {
 		envContent = `PORT=8080`
@@ -35,7 +35,7 @@ VITE_NODE_ENV=development
 	return nil
 }
 
-func CreateGitignoreFile(dirName, template string) error {
+func (pg *ProjectGenerator) CreateGitignoreFile(dirName, template string) error {
 	var gitignoreContent string
 
 	if dirName == "api" {

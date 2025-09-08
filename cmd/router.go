@@ -8,7 +8,18 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// RouterCommand creates the router command for the CLI
+type Router struct {
+	Type       string
+	UpdateMain bool
+}
+
+func NewRouter(routerType string, updateMain bool) *Router {
+	return &Router{
+		Type:       routerType,
+		UpdateMain: updateMain,
+	}
+}
+
 func RouterCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "router",
@@ -39,56 +50,43 @@ Supported routers:
 			routerType := c.String("type")
 			updateMain := c.Bool("update")
 
-			fmt.Printf("Adding %s router to your project...\n", getRouterDisplayName(routerType))
-
-			if err := validateProject(); err != nil {
-				return err
-			}
-
-			if err := installRouterDependency(routerType); err != nil {
-				return fmt.Errorf("failed to install router dependency: %w", err)
-			}
-
-			if updateMain {
-				if err := updateMainWithRouter(routerType); err != nil {
-					return fmt.Errorf("failed to update main.go: %w", err)
-				}
-			}
-
-			fmt.Printf("Successfully added %s router to your project!\n", getRouterDisplayName(routerType))
-			printRouterInstructions(routerType)
-
-			return nil
+			router := NewRouter(routerType, updateMain)
+			return router.execute()
 		},
 	}
 }
 
-func getRouterDisplayName(routerType string) string {
-	switch routerType {
-	case "stdlib":
-		return "http.ServeMux"
-	case "chi":
-		return "Chi"
-	case "gorilla":
-		return "Gorilla Mux"
-	case "httprouter":
-		return "HttpRouter"
-	default:
-		return routerType
+func (r *Router) execute() error {
+	if err := r.validateProject(); err != nil {
+		return err
 	}
+
+	if err := r.installDependency(); err != nil {
+		return fmt.Errorf("failed to install router dependency: %w", err)
+	}
+
+	if r.UpdateMain {
+		if err := r.updateMainFile(); err != nil {
+			return fmt.Errorf("failed to update main.go: %w", err)
+		}
+	}
+
+	r.printInstructions()
+
+	return nil
 }
 
-func validateProject() error {
+func (r *Router) validateProject() error {
 	if _, err := os.Stat("go.mod"); err != nil {
 		return fmt.Errorf("no go.mod found - please run this command in a Go project directory")
 	}
 	return nil
 }
 
-func installRouterDependency(routerType string) error {
+func (r *Router) installDependency() error {
 	var dependency string
 
-	switch routerType {
+	switch r.Type {
 	case "stdlib":
 		fmt.Println("Using standard library http.ServeMux - no additional dependency needed")
 		return nil
@@ -99,7 +97,7 @@ func installRouterDependency(routerType string) error {
 	case "httprouter":
 		dependency = "github.com/julienschmidt/httprouter"
 	default:
-		return fmt.Errorf("unsupported router type: %s", routerType)
+		return fmt.Errorf("unsupported router type: %s", r.Type)
 	}
 
 	if dependency != "" {
@@ -115,13 +113,13 @@ func installRouterDependency(routerType string) error {
 	return nil
 }
 
-func updateMainWithRouter(routerType string) error {
+func (r *Router) updateMainFile() error {
 	mainContent, err := os.ReadFile("main.go")
 	if err != nil {
 		return fmt.Errorf("failed to read main.go: %w", err)
 	}
 
-	newContent := generateRouterMainContent(routerType, string(mainContent))
+	newContent := r.generateMainContent(string(mainContent))
 
 	backupPath := "main.go.backup"
 	if err := os.WriteFile(backupPath, mainContent, 0644); err != nil {
@@ -134,22 +132,52 @@ func updateMainWithRouter(routerType string) error {
 	return nil
 }
 
-func generateRouterMainContent(routerType, existingContent string) string {
-	switch routerType {
+func (r *Router) generateMainContent(existingContent string) string {
+	switch r.Type {
 	case "stdlib":
-		return generateServeMuxContent()
+		return r.generateServeMuxContent()
 	case "chi":
-		return generateChiContent()
+		return r.generateChiContent()
 	case "gorilla":
-		return generateGorillaContent()
+		return r.generateGorillaContent()
 	case "httprouter":
-		return generateHttpRouterContent()
+		return r.generateHttpRouterContent()
 	default:
 		return existingContent
 	}
 }
 
-func generateServeMuxContent() string {
+func (r *Router) printInstructions() {
+	fmt.Println("\nNext steps:")
+	fmt.Println("   go run main.go")
+	fmt.Println("   curl http://localhost:8080/api/hello")
+	fmt.Println("   curl http://localhost:8080/api/health")
+
+	switch r.Type {
+	case "chi":
+		fmt.Println("\nChi router features:")
+		fmt.Println("   - Built-in middleware (Logger, Recoverer, RequestID)")
+		fmt.Println("   - Route groups and subrouting")
+		fmt.Println("   - Fast and lightweight")
+	case "gorilla":
+		fmt.Println("\nGorilla Mux features:")
+		fmt.Println("   - Path variables: r.HandleFunc(\"/users/{id}\", handler)")
+		fmt.Println("   - Query parameter matching")
+		fmt.Println("   - Host and scheme matching")
+	case "httprouter":
+		fmt.Println("\nHttpRouter features:")
+		fmt.Println("   - Extremely fast performance")
+		fmt.Println("   - Path parameters: router.GET(\"/users/:id\", handler)")
+		fmt.Println("   - Zero memory allocation")
+	case "stdlib":
+		fmt.Println("\nhttp.ServeMux features:")
+		fmt.Println("   - Part of Go standard library")
+		fmt.Println("   - Simple and reliable")
+		fmt.Println("   - Pattern matching with wildcards")
+	}
+}
+
+func (r *Router) generateServeMuxContent() string {
 	return `package main
 
 import (
@@ -193,7 +221,7 @@ func main() {
 `
 }
 
-func generateChiContent() string {
+func (r *Router) generateChiContent() string {
 	return `package main
 
 import (
@@ -247,7 +275,7 @@ func main() {
 `
 }
 
-func generateGorillaContent() string {
+func (r *Router) generateGorillaContent() string {
 	return `package main
 
 import (
@@ -296,7 +324,7 @@ func main() {
 `
 }
 
-func generateHttpRouterContent() string {
+func (r *Router) generateHttpRouterContent() string {
 	return `package main
 
 import (
@@ -340,34 +368,4 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, router))
 }
 `
-}
-
-func printRouterInstructions(routerType string) {
-	fmt.Println("\nNext steps:")
-	fmt.Println("   go run main.go")
-	fmt.Println("   curl http://localhost:8080/api/hello")
-	fmt.Println("   curl http://localhost:8080/api/health")
-
-	switch routerType {
-	case "chi":
-		fmt.Println("\nChi router features:")
-		fmt.Println("   - Built-in middleware (Logger, Recoverer, RequestID)")
-		fmt.Println("   - Route groups and subrouting")
-		fmt.Println("   - Fast and lightweight")
-	case "gorilla":
-		fmt.Println("\nGorilla Mux features:")
-		fmt.Println("   - Path variables: r.HandleFunc(\"/users/{id}\", handler)")
-		fmt.Println("   - Query parameter matching")
-		fmt.Println("   - Host and scheme matching")
-	case "httprouter":
-		fmt.Println("\nHttpRouter features:")
-		fmt.Println("   - Extremely fast performance")
-		fmt.Println("   - Path parameters: router.GET(\"/users/:id\", handler)")
-		fmt.Println("   - Zero memory allocation")
-	case "stdlib":
-		fmt.Println("\nhttp.ServeMux features:")
-		fmt.Println("   - Part of Go standard library")
-		fmt.Println("   - Simple and reliable")
-		fmt.Println("   - Pattern matching with wildcards")
-	}
 }

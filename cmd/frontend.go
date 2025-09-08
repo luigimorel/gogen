@@ -2,14 +2,27 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/luigimorel/gogen/internal"
 	"github.com/urfave/cli/v2"
 )
 
-// FrontendCommand creates the frontend framework command for the CLI
+type FrontendManager struct {
+	FrameworkType string
+	DirName       string
+	UseTypeScript bool
+}
+
+func NewFrontendManager(frameworkType, dirName string, useTypeScript bool) *FrontendManager {
+	return &FrontendManager{
+		FrameworkType: frameworkType,
+		DirName:       dirName,
+		UseTypeScript: useTypeScript,
+	}
+}
+
 func FrontendCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "frontend",
@@ -48,54 +61,40 @@ Supported frameworks:
 			dirName := c.String("dir")
 			useTypeScript := c.Bool("typescript")
 
-			fmt.Printf("Adding %s frontend framework...\n", getFrameworkDisplayName(frameworkType))
-
-			if err := validateFrontendSetup(frameworkType); err != nil {
-				return err
-			}
-
-			if err := createFrontendProject(frameworkType, dirName, useTypeScript); err != nil {
-				return fmt.Errorf("failed to create frontend project: %w", err)
-			}
-
-			fmt.Printf("Successfully added %s\n", getFrameworkDisplayName(frameworkType))
-			fmt.Printf("Frontend project created in: %s\n", dirName)
-			printFrontendInstructions(dirName)
-
-			return nil
+			manager := NewFrontendManager(frameworkType, dirName, useTypeScript)
+			return manager.execute()
 		},
 	}
 }
 
-func getFrameworkDisplayName(frameworkType string) string {
-	switch frameworkType {
-	case "react":
-		return "React"
-	case "vue":
-		return "Vue.js"
-	case "svelte":
-		return "Svelte"
-	case "solidjs":
-		return "SolidJS"
-	case "angular":
-		return "Angular"
-	default:
-		return frameworkType
+func (fm *FrontendManager) execute() error {
+	if err := fm.validateSetup(); err != nil {
+		return err
 	}
+
+	pg := internal.NewProjectGenerator()
+	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript); err != nil {
+		return fmt.Errorf("failed to create frontend project: %w", err)
+	}
+
+	fmt.Printf("Frontend project created in: %s\n", fm.DirName)
+	fm.printInstructions()
+
+	return nil
 }
 
-func validateFrontendSetup(frameworkType string) error {
-	if !commandExists("node") {
+func (fm *FrontendManager) validateSetup() error {
+	if !fm.commandExists("node") {
 		return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
 	}
 
-	if !commandExists("npm") {
+	if !fm.commandExists("npm") {
 		return fmt.Errorf("npm is required but not installed. Please install npm")
 	}
 
-	switch frameworkType {
+	switch fm.FrameworkType {
 	case "angular":
-		if !commandExists("ng") {
+		if !fm.commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
 			cmd := exec.Command("npm", "install", "-g", "@angular/cli")
 			if err := cmd.Run(); err != nil {
@@ -103,108 +102,25 @@ func validateFrontendSetup(frameworkType string) error {
 			}
 		}
 	case "react", "vue", "svelte", "solidjs":
+		// These frameworks are supported
 	default:
-		return fmt.Errorf("unsupported frontend framework: %s", frameworkType)
+		return fmt.Errorf("unsupported frontend framework: %s", fm.FrameworkType)
 	}
 
 	return nil
 }
 
-func createFrontendProject(frameworkType, dirName string, useTypeScript bool) error {
-	//TODO: Remove directory if it exists?
-	if _, err := os.Stat(dirName); err == nil {
-		fmt.Printf("Directory %s already exists, removing...\n", dirName)
-	}
-
-	var cmd *exec.Cmd
-
-	switch frameworkType {
-	case "react":
-		if useTypeScript {
-			cmd = exec.Command("npm", "create", "vite@latest", dirName, "--", "--template", "react-ts")
-		} else {
-			cmd = exec.Command("npm", "create", "vite@latest", dirName, "--", "--template", "react")
-		}
-
-	case "vue":
-		if useTypeScript {
-			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--ts", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
-		} else {
-			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
-		}
-
-	case "svelte":
-		if useTypeScript {
-			cmd = exec.Command("npx", "sv", "create", dirName,
-				"--template", "minimal",
-				"--types", "ts",
-				"--no-add-ons",
-				"--install", "npm")
-		} else {
-			cmd = exec.Command("npx", "sv", "create", dirName,
-				"--template", "minimal",
-				"--types", "jsdoc",
-				"--no-add-ons",
-				"--install", "npm")
-		}
-
-	case "solidjs":
-		if useTypeScript {
-			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/ts", dirName, "--force")
-		} else {
-			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/js", dirName, "--force")
-		}
-
-	case "angular":
-		args := []string{"new", dirName, "--routing=true", "--style=css", "--skip-git=true"}
-		if useTypeScript {
-			args = append(args, "--strict=true")
-		}
-		cmd = exec.Command("ng", args...)
-
-	default:
-		return fmt.Errorf("unsupported frontend framework: %s", frameworkType)
-	}
-
-	fmt.Printf("Creating %s project...\n", getFrameworkDisplayName(frameworkType))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create %s project: %w", frameworkType, err)
-	}
-
-	// Install dependencies for non-Angular projects (Angular CLI handles this automatically)
-	if frameworkType != "angular" {
-		originalDir, _ := os.Getwd()
-		if err := os.Chdir(dirName); err != nil {
-			return fmt.Errorf("failed to change to frontend directory: %w", err)
-		}
-		defer func() {
-			if err := os.Chdir(originalDir); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to change back to original directory: %v\n", err)
-			}
-		}()
-
-		fmt.Println("Installing dependencies...")
-		installCmd := exec.Command("npm", "install")
-		installCmd.Stdout = os.Stdout
-		installCmd.Stderr = os.Stderr
-		if err := installCmd.Run(); err != nil {
-			return fmt.Errorf("failed to install dependencies: %w", err)
-		}
-	}
-
-	return nil
+func (fm *FrontendManager) commandExists(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
 }
 
-func printFrontendInstructions(dirName string) {
+func (fm *FrontendManager) printInstructions() {
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("Frontend setup complete!")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Printf("\nNext steps:\n")
-	fmt.Printf("   cd %s\n", dirName)
+	fmt.Printf("   cd %s\n", fm.DirName)
 	fmt.Printf("   npm run dev\n")
 }

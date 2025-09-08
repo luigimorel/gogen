@@ -12,7 +12,7 @@ A fast and simple CLI tool for generating Go project boilerplates.
 
 ## Installation
 
-### Quick Install (Recommended)
+### Quick Install
 
 ```bash
 # Build from source
