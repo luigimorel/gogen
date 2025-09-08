@@ -128,23 +128,31 @@ func createFrontendProject(frameworkType, dirName string, useTypeScript bool) er
 
 	case "vue":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "vue@latest", dirName, "--", "--typescript")
+			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--ts", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
 		} else {
-			cmd = exec.Command("npm", "create", "vue@latest", dirName)
+			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
 		}
 
 	case "svelte":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "svelte@latest", dirName, "--", "--template", "skeleton", "--types", "typescript")
+			cmd = exec.Command("npx", "sv", "create", dirName,
+				"--template", "minimal",
+				"--types", "ts",
+				"--no-add-ons",
+				"--install", "npm")
 		} else {
-			cmd = exec.Command("npm", "create", "svelte@latest", dirName, "--", "--template", "skeleton", "--types", "javascript")
+			cmd = exec.Command("npx", "sv", "create", dirName,
+				"--template", "minimal",
+				"--types", "jsdoc",
+				"--no-add-ons",
+				"--install", "npm")
 		}
 
 	case "solidjs":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "solid@latest", dirName, "--", "--template", "ts")
+			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/ts", dirName, "--force")
 		} else {
-			cmd = exec.Command("npm", "create", "solid@latest", dirName, "--", "--template", "js")
+			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/js", dirName, "--force")
 		}
 
 	case "angular":

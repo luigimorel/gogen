@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
-	"github.com/luigimorel/gogen/internals/utils"
+	"github.com/luigimorel/gogen/internal"
 	"github.com/urfave/cli/v2"
 )
 
@@ -112,16 +111,6 @@ This command will create a new directory, initialize a Go module, and create a n
 				return fmt.Errorf("failed to create project files: %w", err)
 			}
 
-			fmt.Printf("Project '%s' created successfully\n", projectName)
-			fmt.Printf("Location: %s\n", filepath.Join(originalDir, projectDir))
-			fmt.Printf("Template: %s\n", template)
-			fmt.Printf("Router: %s\n", router)
-			if frontend != "" {
-				fmt.Printf("Frontend: %s\n", frontend)
-				if useTypeScript {
-					fmt.Println("TypeScript: enabled")
-				}
-			}
 			fmt.Println("\nNext steps:")
 			fmt.Printf("   cd %s\n", projectDir)
 			if template == "web" {
@@ -206,7 +195,7 @@ func main() {
 		return err
 	}
 
-	if err := utils.InitGitRepository(projectName, "cli"); err != nil {
+	if err := internal.InitGitRepository(projectName, "cli"); err != nil {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
@@ -439,7 +428,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		return err
 	}
 
-	if err := utils.InitGitRepository(projectName, "web"); err != nil {
+	if err := internal.InitGitRepository(projectName, "web"); err != nil {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
@@ -463,9 +452,21 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("failed to create frontend project: %w", err)
 		}
 
-		if err := utils.CreateEnvFile("frontend"); err != nil {
+		if err := internal.CreateEnvFile("frontend"); err != nil {
 			fmt.Printf("Warning: failed to create env file: %v\n", err)
 		}
+
+		if err := internal.CreateGitignoreFile("frontend", "frontend"); err != nil {
+			fmt.Printf("Warning: failed to create .gitignore file in frontend: %v\n", err)
+		}
+	}
+
+	if err := internal.CreateEnvFile("api"); err != nil {
+		fmt.Printf("Warning: failed to create env file in api: %v\n", err)
+	}
+
+	if err := internal.CreateGitignoreFile("api", "api"); err != nil {
+		fmt.Printf("Warning: failed to create .gitignore file in api: %v\n", err)
 	}
 
 	return nil
@@ -743,11 +744,11 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		return err
 	}
 
-	if err := utils.CreateEnvFile("api"); err != nil {
+	if err := internal.CreateEnvFile("."); err != nil {
 		fmt.Printf("Warning: failed to create env file: %v\n", err)
 	}
 
-	if err := utils.InitGitRepository(projectName, "api"); err != nil {
+	if err := internal.InitGitRepository(projectName, "api"); err != nil {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
