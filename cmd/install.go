@@ -13,7 +13,18 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// InstallCommand creates the install command for the CLI
+type Installer struct {
+	Method string
+	Force  bool
+}
+
+func NewInstaller(method string, force bool) *Installer {
+	return &Installer{
+		Method: method,
+		Force:  force,
+	}
+}
+
 func InstallCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "install",
@@ -38,50 +49,55 @@ Supports Windows, Linux, and Nix package manager.`,
 			method := c.String("method")
 			force := c.Bool("force")
 
-			fmt.Println("Installing gogen CLI...")
-
-			switch method {
-			case "auto":
-				return autoInstall(force)
-			case "binary":
-				return binaryInstall(force)
-			case "nix":
-				return nixInstall(force)
-			case "brew":
-				return brewInstall(force)
-			default:
-				return fmt.Errorf("unsupported installation method: %s", method)
-			}
+			installer := NewInstaller(method, force)
+			return installer.execute()
 		},
 	}
 }
 
-func autoInstall(force bool) error {
+func (i *Installer) execute() error {
+	fmt.Println("Installing gogen CLI...")
+
+	switch i.Method {
+	case "auto":
+		return i.autoInstall()
+	case "binary":
+		return i.binaryInstall()
+	case "nix":
+		return i.nixInstall()
+	case "brew":
+		return i.brewInstall()
+	default:
+		return fmt.Errorf("unsupported installation method: %s", i.Method)
+	}
+}
+
+func (i *Installer) autoInstall() error {
 	switch runtime.GOOS {
 	case "darwin":
-		if commandExists("brew") {
+		if i.commandExists("brew") {
 			fmt.Println("Detected Homebrew, using brew installation...")
-			return brewInstall(force)
+			return i.brewInstall()
 		}
-		return binaryInstall(force)
+		return i.binaryInstall()
 	case "linux":
-		if commandExists("nix-env") || commandExists("nix") {
+		if i.commandExists("nix-env") || i.commandExists("nix") {
 			fmt.Println("Detected Nix, using nix installation...")
-			return nixInstall(force)
+			return i.nixInstall()
 		}
-		return binaryInstall(force)
+		return i.binaryInstall()
 	case "windows":
-		return binaryInstall(force)
+		return i.binaryInstall()
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 }
 
-func binaryInstall(force bool) error {
-	binDir := getBinaryInstallDir()
-	binPath := filepath.Join(binDir, getBinaryName())
+func (i *Installer) binaryInstall() error {
+	binDir := i.getBinaryInstallDir()
+	binPath := filepath.Join(binDir, i.getBinaryName())
 
-	if !force && fileExists(binPath) {
+	if !i.Force && i.fileExists(binPath) {
 		fmt.Printf("gogen is already installed at %s\n", binPath)
 		fmt.Println("Use --force to reinstall")
 		return nil
@@ -91,10 +107,10 @@ func binaryInstall(force bool) error {
 		return fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
-	downloadURL := getDownloadURL()
+	downloadURL := i.getDownloadURL()
 	fmt.Printf("Downloading from %s...\n", downloadURL)
 
-	if err := downloadFile(downloadURL, binPath); err != nil {
+	if err := i.downloadFile(downloadURL, binPath); err != nil {
 		return fmt.Errorf("failed to download binary: %w", err)
 	}
 
@@ -105,41 +121,40 @@ func binaryInstall(force bool) error {
 	}
 
 	fmt.Printf("gogen installed successfully to %s\n", binPath)
-	printPathInstructions(binDir)
+	i.printPathInstructions(binDir)
 
 	return nil
 }
 
-func nixInstall(force bool) error {
-	if !commandExists("nix-env") && !commandExists("nix") {
+func (i *Installer) nixInstall() error {
+	if !i.commandExists("nix-env") && !i.commandExists("nix") {
 		return fmt.Errorf("nix is not installed on this system")
 	}
 
 	fmt.Println("Nix package not available yet, using binary installation...")
-	return binaryInstall(force)
+	return i.binaryInstall()
 }
 
-func brewInstall(force bool) error {
-	if !commandExists("brew") {
+func (i *Installer) brewInstall() error {
+	if !i.commandExists("brew") {
 		return fmt.Errorf("homebrew is not installed on this system")
 	}
 
 	fmt.Println("Homebrew formula not available yet, using binary installation...")
-	return binaryInstall(force)
+	return i.binaryInstall()
 }
 
-// Helper functions
-func commandExists(cmd string) bool {
+func (i *Installer) commandExists(cmd string) bool {
 	_, err := exec.LookPath(cmd)
 	return err == nil
 }
 
-func fileExists(path string) bool {
+func (i *Installer) fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-func getBinaryInstallDir() string {
+func (i *Installer) getBinaryInstallDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		// Use %USERPROFILE%\AppData\Local\gogen
@@ -152,14 +167,14 @@ func getBinaryInstallDir() string {
 	}
 }
 
-func getBinaryName() string {
+func (i *Installer) getBinaryName() string {
 	if runtime.GOOS == "windows" {
 		return "gogen.exe"
 	}
 	return "gogen"
 }
 
-func getDownloadURL() string {
+func (i *Installer) getDownloadURL() string {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
 
@@ -176,7 +191,7 @@ func getDownloadURL() string {
 	return fmt.Sprintf("https://github.com/luigimorel/gogen/releases/%s/download/%s", version, filename)
 }
 
-func downloadFile(url, filepath string) error {
+func (i *Installer) downloadFile(url, filepath string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -197,7 +212,7 @@ func downloadFile(url, filepath string) error {
 	return err
 }
 
-func printPathInstructions(binDir string) {
+func (i *Installer) printPathInstructions(binDir string) {
 	switch runtime.GOOS {
 	case "windows":
 		fmt.Println("\nTo add gogen to your PATH:")

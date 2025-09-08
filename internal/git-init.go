@@ -6,12 +6,12 @@ import (
 	"os/exec"
 )
 
-func InitGitRepository(projectName, template string) error {
+func (pg *ProjectGenerator) InitGitRepository(projectName, template string) error {
 	if err := exec.Command("git", "init").Run(); err != nil {
 		return fmt.Errorf("failed to initialize git repository: %w", err)
 	}
 
-	gitignoreContent := createGitignoreContent(template)
+	gitignoreContent := pg.createGitignoreContent(template)
 	if err := os.WriteFile(".gitignore", []byte(gitignoreContent), 0644); err != nil {
 		return fmt.Errorf("failed to create .gitignore: %w", err)
 	}
@@ -28,7 +28,7 @@ func InitGitRepository(projectName, template string) error {
 	return nil
 }
 
-func createGitignoreContent(template string) string {
+func (pg *ProjectGenerator) createGitignoreContent(template string) string {
 	baseIgnore := `
 # Environment variables
 .env
