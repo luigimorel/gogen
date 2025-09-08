@@ -64,4 +64,4 @@ install:
 	go install $(MAIN_PATH)
 
 release: clean
-	goreleaser release --clean 
+	source .env; goreleaser release --clean
