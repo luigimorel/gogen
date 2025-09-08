@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -99,8 +98,6 @@ func validateFrontendSetup(frameworkType string) error {
 		if !commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
 			cmd := exec.Command("npm", "install", "-g", "@angular/cli")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to install Angular CLI: %w", err)
 			}
@@ -131,23 +128,31 @@ func createFrontendProject(frameworkType, dirName string, useTypeScript bool) er
 
 	case "vue":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "vue@latest", dirName, "--", "--typescript")
+			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--ts", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
 		} else {
-			cmd = exec.Command("npm", "create", "vue@latest", dirName)
+			cmd = exec.Command("npm", "--yes", "create", "vue@latest", dirName, "--", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier")
 		}
 
 	case "svelte":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "svelte@latest", dirName, "--", "--template", "skeleton", "--types", "typescript")
+			cmd = exec.Command("npx", "sv", "create", dirName,
+				"--template", "minimal",
+				"--types", "ts",
+				"--no-add-ons",
+				"--install", "npm")
 		} else {
-			cmd = exec.Command("npm", "create", "svelte@latest", dirName, "--", "--template", "skeleton", "--types", "javascript")
+			cmd = exec.Command("npx", "sv", "create", dirName,
+				"--template", "minimal",
+				"--types", "jsdoc",
+				"--no-add-ons",
+				"--install", "npm")
 		}
 
 	case "solidjs":
 		if useTypeScript {
-			cmd = exec.Command("npm", "create", "solid@latest", dirName, "--", "--template", "ts")
+			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/ts", dirName, "--force")
 		} else {
-			cmd = exec.Command("npm", "create", "solid@latest", dirName, "--", "--template", "js")
+			cmd = exec.Command("npx", "--yes", "degit", "solidjs/templates/js", dirName, "--force")
 		}
 
 	case "angular":
@@ -189,27 +194,6 @@ func createFrontendProject(frameworkType, dirName string, useTypeScript bool) er
 		if err := installCmd.Run(); err != nil {
 			return fmt.Errorf("failed to install dependencies: %w", err)
 		}
-	}
-
-	if err := createEnvFile(dirName); err != nil {
-		return fmt.Errorf("failed to create .env file: %w", err)
-	}
-
-	return nil
-}
-
-func createEnvFile(dirName string) error {
-	envContent := `
-VITE_API_URL=http://localhost:8080
-VITE_API_BASE_PATH=/api
-
-# Development
-VITE_NODE_ENV=development
-`
-
-	envPath := filepath.Join(dirName, ".env.example")
-	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
-		fmt.Printf("Warning: failed to create .env.example: %v\n", err)
 	}
 
 	return nil
