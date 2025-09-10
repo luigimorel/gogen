@@ -13,13 +13,15 @@ type FrontendManager struct {
 	FrameworkType string
 	DirName       string
 	UseTypeScript bool
+	Runtime       string
 }
 
-func NewFrontendManager(frameworkType, dirName string, useTypeScript bool) *FrontendManager {
+func NewFrontendManager(frameworkType, dirName, runtime string, useTypeScript bool) *FrontendManager {
 	return &FrontendManager{
 		FrameworkType: frameworkType,
 		DirName:       dirName,
 		UseTypeScript: useTypeScript,
+		Runtime:       runtime,
 	}
 }
 
@@ -38,22 +40,34 @@ Supported frameworks:
 - solidjs: SolidJS with Vite
 - angular: Angular CLI
 
+Supported runtimes:
+- node: Node.js (default)
+- bun: Bun
+- deno: Deno
+
 Usage:
   gogen frontend react
   gogen frontend vue --typescript
-  gogen frontend svelte --dir client`,
+  gogen frontend svelte --dir client --runtime bun
+  gogen frontend react --runtime deno`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "dir",
 				Aliases: []string{"d"},
 				Usage:   "Directory name for the frontend project",
-				Value:   "frontend",
+				// Value:   "frontend",
 			},
 			&cli.BoolFlag{
 				Name:    "typescript",
 				Aliases: []string{"ts"},
 				Usage:   "Use TypeScript (where supported)",
 				Value:   false,
+			},
+			&cli.StringFlag{
+				Name:    "runtime",
+				Aliases: []string{"r"},
+				Usage:   "JavaScript runtime to use (node, deno, bun)",
+				Value:   "node",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -64,8 +78,11 @@ Usage:
 			frameworkType := c.Args().Get(0)
 			dirName := c.String("dir")
 			useTypeScript := c.Bool("typescript")
+			runtime := c.String("runtime")
 
-			manager := NewFrontendManager(frameworkType, dirName, useTypeScript)
+			fmt.Printf("DEBUG CLI: framework=%s, dir=%s, typescript=%v, runtime=%s\n", frameworkType, dirName, useTypeScript, runtime)
+
+			manager := NewFrontendManager(frameworkType, dirName, runtime, useTypeScript)
 			return manager.execute()
 		},
 	}
@@ -77,7 +94,7 @@ func (fm *FrontendManager) execute() error {
 	}
 
 	pg := internal.NewProjectGenerator()
-	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript); err != nil {
+	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript, fm.Runtime); err != nil {
 		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
@@ -88,25 +105,44 @@ func (fm *FrontendManager) execute() error {
 }
 
 func (fm *FrontendManager) validateSetup() error {
-	if !fm.commandExists("node") {
-		return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
-	}
-
-	if !fm.commandExists("npm") {
-		return fmt.Errorf("npm is required but not installed. Please install npm")
+	switch fm.Runtime {
+	case "node":
+		if !fm.commandExists("node") {
+			return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
+		}
+		if !fm.commandExists("npm") {
+			return fmt.Errorf("npm is required but not installed. Please install npm")
+		}
+	case "deno":
+		if !fm.commandExists("deno") {
+			return fmt.Errorf("deno is required but not installed. Please install Deno from https://deno.land/")
+		}
+	case "bun":
+		if !fm.commandExists("bun") {
+			return fmt.Errorf("bun is required but not installed. Please install Bun from https://bun.sh/")
+		}
+	default:
+		return fmt.Errorf("unsupported runtime: %s. Supported runtimes: node, deno, bun", fm.Runtime)
 	}
 
 	switch fm.FrameworkType {
 	case "angular":
-		if !fm.commandExists("ng") {
+		if fm.Runtime == "node" && !fm.commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
-			cmd := exec.Command("npm", "install", "-g", "@angular/cli")
+			var cmd *exec.Cmd
+			switch fm.Runtime {
+			case "node":
+				cmd = exec.Command("npm", "install", "-g", "@angular/cli")
+			case "bun":
+				cmd = exec.Command("bun", "add", "-g", "@angular/cli")
+			case "deno":
+				return fmt.Errorf("angular CLI installation with Deno is not supported")
+			}
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to install Angular CLI: %w", err)
 			}
 		}
 	case "react", "vue", "svelte", "solidjs":
-		// These frameworks are supported
 	default:
 		return fmt.Errorf("unsupported frontend framework: %s", fm.FrameworkType)
 	}
@@ -121,10 +157,23 @@ func (fm *FrontendManager) commandExists(cmd string) bool {
 
 func (fm *FrontendManager) printInstructions() {
 	fmt.Println("\n" + strings.Repeat("=", 50))
-	fmt.Println("Frontend setup complete!")
+	fmt.Printf("Frontend setup complete! (Runtime: %s)\n", fm.Runtime)
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Printf("\nNext steps:\n")
 	fmt.Printf("   cd %s\n", fm.DirName)
-	fmt.Printf("   npm run dev\n")
+
+	var devCommand string
+	switch fm.Runtime {
+	case "node":
+		devCommand = "npm run dev"
+	case "bun":
+		devCommand = "bun run dev"
+	case "deno":
+		devCommand = "deno task dev"
+	default:
+		devCommand = "npm run dev"
+	}
+
+	fmt.Printf("   %s\n", devCommand)
 }

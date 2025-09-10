@@ -10,28 +10,30 @@ import (
 )
 
 type ProjectCreator struct {
-	Name          string
-	ModuleName    string
-	Template      string
-	Router        string
-	Frontend      string
-	ProjectDir    string
-	UseTypeScript bool
+	Name              string
+	ModuleName        string
+	Template          string
+	Router            string
+	FrontendFramework string
+	DirName           string
+	UseTypeScript     bool
+	Runtime           string
 }
 
-func NewProjectCreator(name, moduleName, template, router, frontend, projectDir string, useTypeScript bool) *ProjectCreator {
+func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir string, useTypeScript bool, runtime string) *ProjectCreator {
 	if projectDir == "" {
 		projectDir = name
 	}
 
 	return &ProjectCreator{
-		Name:          name,
-		ModuleName:    moduleName,
-		Template:      template,
-		Router:        router,
-		Frontend:      frontend,
-		ProjectDir:    projectDir,
-		UseTypeScript: useTypeScript,
+		Name:              name,
+		ModuleName:        moduleName,
+		Template:          template,
+		Router:            router,
+		DirName:           projectDir,
+		FrontendFramework: frontendFramework,
+		UseTypeScript:     useTypeScript,
+		Runtime:           runtime,
 	}
 }
 
@@ -74,6 +76,11 @@ This command will create a new directory, initialize a Go module, and create a n
 				Name:  "dir",
 				Usage: "Directory name for the project (default: project name)",
 			},
+			&cli.StringFlag{
+				Name:  "runtime",
+				Usage: "JavaScript runtime to use (node, deno, bun)",
+				Value: "node",
+			},
 			&cli.BoolFlag{
 				Name:  "ts",
 				Usage: "Use TypeScript for frontend projects (only applicable with --frontend)",
@@ -88,8 +95,15 @@ This command will create a new directory, initialize a Go module, and create a n
 			frontend := c.String("frontend")
 			projectDir := c.String("dir")
 			useTypeScript := c.Bool("ts")
+			runtime := c.String("runtime")
 
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript)
+			// Check if runtime was explicitly set by user
+			runtimeExplicitlySet := c.IsSet("runtime")
+			if runtimeExplicitlySet && template != "web" {
+				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
+			}
+
+			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript, runtime)
 			return creator.execute()
 		},
 	}
@@ -100,7 +114,7 @@ func (pc *ProjectCreator) execute() error {
 		return err
 	}
 
-	fmt.Printf("Creating new Go project '%s'...\n", pc.Name)
+	fmt.Printf("Creating new project '%s'...\n", pc.DirName)
 
 	if err := pc.createProjectDirectory(); err != nil {
 		return err
@@ -126,11 +140,11 @@ func (pc *ProjectCreator) execute() error {
 }
 
 func (pc *ProjectCreator) validate() error {
-	if pc.Frontend != "" && pc.Template != "web" {
+	if pc.FrontendFramework != "" && pc.Template != "web" {
 		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
 	}
 
-	if pc.UseTypeScript && pc.Frontend == "" {
+	if pc.UseTypeScript && pc.FrontendFramework == "" {
 		return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
 	}
 
@@ -138,7 +152,7 @@ func (pc *ProjectCreator) validate() error {
 }
 
 func (pc *ProjectCreator) createProjectDirectory() error {
-	if err := os.Mkdir(pc.ProjectDir, 0755); err != nil {
+	if err := os.Mkdir(pc.DirName, 0755); err != nil {
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 	return nil
@@ -146,7 +160,7 @@ func (pc *ProjectCreator) createProjectDirectory() error {
 
 func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 	originalDir, _ := os.Getwd()
-	if err := os.Chdir(pc.ProjectDir); err != nil {
+	if err := os.Chdir(pc.DirName); err != nil {
 		return "", nil, fmt.Errorf("failed to change to project directory: %w", err)
 	}
 
@@ -160,9 +174,12 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 }
 
 func (pc *ProjectCreator) initializeGoModule() error {
-
 	if pc.Template != "web" {
-		cmd := exec.Command("go", "mod", "init", "github.com/"+pc.ModuleName)
+		moduleName := pc.ModuleName
+		if moduleName == "" {
+			moduleName = pc.Name
+		}
+		cmd := exec.Command("go", "mod", "init", moduleName)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -179,7 +196,7 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	case "cli":
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
 	case "web":
-		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.Frontend, pc.UseTypeScript)
+		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.UseTypeScript, pc.Runtime)
 	case "api":
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
 	default:
@@ -189,12 +206,12 @@ func (pc *ProjectCreator) createProjectFiles() error {
 
 func (pc *ProjectCreator) printNextSteps() {
 	fmt.Println("\nNext steps:")
-	fmt.Printf("   cd %s\n", pc.ProjectDir)
+	fmt.Printf("   cd %s\n", pc.Name)
 
 	if pc.Template == "web" {
 		fmt.Println("   cd api")
 		fmt.Println("   go run main.go")
-		if pc.Frontend != "" {
+		if pc.FrontendFramework != "" {
 			fmt.Println("\n   # In another terminal:")
 			fmt.Println("   cd frontend")
 			fmt.Println("   npm run dev")
