@@ -6,10 +6,66 @@ import (
 	"os/exec"
 )
 
-type ProjectGenerator struct{}
+type ProjectGenerator struct {
+	RouterGenerator *RouterGenerator
+}
 
 func NewProjectGenerator() *ProjectGenerator {
-	return &ProjectGenerator{}
+	return &ProjectGenerator{
+		RouterGenerator: NewRouterGenerator(),
+	}
+}
+
+func (pg *ProjectGenerator) setModuleName(moduleName, projectName string) string {
+	if moduleName == "" {
+		return "github.com/" + projectName
+	}
+	return moduleName
+}
+
+func (pg *ProjectGenerator) setDefaultPackages() string {
+	return `"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/joho/godotenv"`
+}
+
+func (pg *ProjectGenerator) generateMainContent(moduleName, projectName, routerType string) string {
+	var routerSetup, serverStart string
+
+	if routerType == "stdlib" {
+		routerSetup = "web.SetupRoutes()"
+		serverStart = "log.Fatal(http.ListenAndServe(port, nil))"
+	} else {
+		routerSetup = "r := web.SetupRoutes()"
+		serverStart = "log.Fatal(http.ListenAndServe(port, r))"
+	}
+
+	return `package main
+
+import (
+	` + pg.setDefaultPackages() + `
+	"` + pg.setModuleName(moduleName, projectName) + `/cmd/web"
+)
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	` + routerSetup + `
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	port = ":" + port
+
+	fmt.Printf("Starting web server on http://localhost%s\n", port)
+	` + serverStart + `
+}`
 }
 
 func (pg *ProjectGenerator) CreateCLIProject(projectName, moduleName string) error {
@@ -69,239 +125,9 @@ func main() {
 	return cmd.Run()
 }
 
-func (pg *ProjectGenerator) setModuleName(moduleName, projectName string) string {
-	if moduleName == "" {
-		return "github.com/" + projectName
-	}
-	return moduleName
-}
-
-func (pg *ProjectGenerator) setDefaultPackages() string {
-	return `"fmt"
-	"log"
-	"net/http"`
-}
-
-func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontend string, useTypeScript bool) error {
-	if err := os.MkdirAll("api/cmd/web", 0755); err != nil {
-		return fmt.Errorf("failed to create api/cmd/web directory: %w", err)
-	}
-
-	var mainContent string
-	var routesContent string
-
-	switch router {
-	case "chi":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/api/cmd/web"
-)
-
-func main() {
-	r := web.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, r))
-}
-`
-		routesContent = `package web
-
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-)
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *chi.Mux {
-	r := chi.NewRouter()
-	
-	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	// Routes
-	r.Get("/", homeHandler)
-	r.Get("/health", healthHandler)
-
-	return r
-}
-
-// homeHandler handles the home page
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK")
-}
-`
-
-	case "gorilla":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/api/cmd/web"
-)
-
-func main() {
-	r := web.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, r))
-}
-`
-		routesContent = `package web
-
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/gorilla/mux"
-)
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *mux.Router {
-	r := mux.NewRouter()
-
-	// Routes
-	r.HandleFunc("/", homeHandler).Methods("GET")
-	r.HandleFunc("/health", healthHandler).Methods("GET")
-
-	return r
-}
-
-// homeHandler handles the home page
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK")
-}
-`
-
-	case "httprouter":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/api/cmd/web"
-)
-
-func main() {
-	router := web.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, router))
-}
-`
-		routesContent = `package web
-
-import (
-	"fmt"
-	"net/http"
-
-	"github.com/julienschmidt/httprouter"
-)
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *httprouter.Router {
-	router := httprouter.New()
-
-	// Routes
-	router.GET("/", homeHandler)
-	router.GET("/health", healthHandler)
-
-	return router
-}
-
-// homeHandler handles the home page
-func homeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK")
-}
-`
-
-	default: // stdlib
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/api/cmd/web"
-)
-
-func main() {
-	web.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` web server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, nil))
-}
-`
-		routesContent = `package web
-
-import (
-	"fmt"
-	"net/http"
-)
-
-// SetupRoutes configures all HTTP routes
-func SetupRoutes() {
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/health", healthHandler)
-}
-
-// homeHandler handles the home page
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from ` + projectName + ` web server")
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK")
-}
-`
-	}
-
-	if err := os.WriteFile("api/main.go", []byte(mainContent), 0644); err != nil {
-		return err
-	}
-
-	if err := os.WriteFile("api/cmd/web/routes.go", []byte(routesContent), 0644); err != nil {
-		return err
-	}
-
-	baseModuleName := pg.setModuleName(moduleName, projectName)
-	apiModContent := fmt.Sprintf("module %s/api\n\ngo 1.21\n", baseModuleName)
-	if err := os.WriteFile("api/go.mod", []byte(apiModContent), 0644); err != nil {
-		return err
-	}
-
-	if err := pg.InitGitRepository(projectName, "web"); err != nil {
-		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
+func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework string, useTypeScript bool, runtime string) error {
+	if err := pg.createAPIProjectInDir("api", projectName, moduleName, router); err != nil {
+		return fmt.Errorf("failed to create API project: %w", err)
 	}
 
 	originalDir, _ := os.Getwd()
@@ -309,317 +135,133 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		return fmt.Errorf("failed to change to api directory: %w", err)
 	}
 
-	cmd := exec.Command("go", "mod", "tidy")
-	if err := cmd.Run(); err != nil {
+	if err := pg.createConfigFiles(); err != nil {
 		os.Chdir(originalDir)
-		return fmt.Errorf("failed to tidy go.mod file: %w", err)
+		return fmt.Errorf("failed to create config files: %w", err)
 	}
 
 	if err := os.Chdir(originalDir); err != nil {
 		return fmt.Errorf("failed to change back to original directory: %w", err)
 	}
 
-	if frontend != "" {
-		if err := pg.CreateFrontendProject(frontend, "frontend", useTypeScript); err != nil {
-			return fmt.Errorf("failed to create frontend project: %w", err)
-		}
-
-		if err := pg.CreateEnvFile("frontend"); err != nil {
-			fmt.Printf("Warning: failed to create env file: %v\n", err)
-		}
-
-		if err := pg.CreateGitignoreFile("frontend", "frontend"); err != nil {
-			fmt.Printf("Warning: failed to create .gitignore file in frontend: %v\n", err)
-		}
+	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime); err != nil {
+		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
-	if err := pg.CreateEnvFile("api"); err != nil {
-		fmt.Printf("Warning: failed to create env file in api: %v\n", err)
+	if err := os.Chdir("frontend"); err != nil {
+		return fmt.Errorf("failed to change to frontend directory: %w", err)
 	}
 
-	if err := pg.CreateGitignoreFile("api", "api"); err != nil {
-		fmt.Printf("Warning: failed to create .gitignore file in api: %v\n", err)
+	if err := pg.CreateEnvFile("frontend", "."); err != nil {
+		fmt.Printf("Warning: failed to create env file: %v\n", err)
+	}
+
+	if err := pg.RemoveGitRepository("."); err != nil {
+		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
+	} else {
+		fmt.Println("Removed git repository from frontend")
 	}
 
 	return nil
 }
 
-// CreateAPIProject creates an API-only project with the specified parameters
+func (pg *ProjectGenerator) createConfigFiles() error {
+	if err := pg.CreateEnvFile("api", "."); err != nil {
+		return fmt.Errorf("warning: failed to create env file in api: %v", err)
+	}
+
+	if err := pg.CreateGitignoreFile("api", "."); err != nil {
+		return fmt.Errorf("warning: failed to create .gitignore file in api: %v", err)
+	}
+	return nil
+}
+
 func (pg *ProjectGenerator) CreateAPIProject(projectName, moduleName, router string) error {
-	if err := os.MkdirAll("cmd/api", 0755); err != nil {
-		return fmt.Errorf("failed to create cmd/api directory: %w", err)
+	return pg.createAPIProjectInDir(".", projectName, moduleName, router)
+}
+
+func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleName, router string) error {
+	cmdWebDir := fmt.Sprintf("%s/cmd/web", baseDir)
+	if baseDir == "." {
+		cmdWebDir = "cmd/web"
+	}
+
+	if err := os.MkdirAll(cmdWebDir, 0755); err != nil {
+		return fmt.Errorf("failed to create cmd/web directory: %w", err)
 	}
 
 	var mainContent string
 	var routesContent string
 
-	responseStruct := `type Response struct {
-	Message string ` + "`" + `json:"message"` + "`" + `
-	Service string ` + "`" + `json:"service"` + "`" + `
-}`
-
 	switch router {
 	case "chi":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/cmd/api"
-)
-
-func main() {
-	r := api.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, r))
-}
-`
-		routesContent = fmt.Sprintf(`package api
-
-import (
-	"encoding/json"
-	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-)
-
-%s
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *chi.Mux {
-	r := chi.NewRouter()
-	
-	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.SetHeader("Content-Type", "application/json"))
-
-	// Routes
-	r.Get("/api/hello", helloHandler)
-	r.Get("/api/health", healthHandler)
-
-	return r
-}
-
-// helloHandler handles the hello endpoint
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	response := Response{
-		Message: "Hello from %s API",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	response := Response{
-		Message: "API is healthy",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-`, responseStruct, projectName, projectName, projectName)
+		mainContent = pg.generateMainContent(moduleName, projectName, "chi")
+		routesContent = pg.RouterGenerator.generateChiContent()
 
 	case "gorilla":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/cmd/api"
-)
-
-func main() {
-	r := api.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, r))
-}
-`
-		routesContent = fmt.Sprintf(`package api
-
-import (
-	"encoding/json"
-	"net/http"
-
-	"github.com/gorilla/mux"
-)
-
-%s
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *mux.Router {
-	r := mux.NewRouter()
-
-	// Routes
-	r.HandleFunc("/api/hello", helloHandler).Methods("GET")
-	r.HandleFunc("/api/health", healthHandler).Methods("GET")
-
-	return r
-}
-
-// helloHandler handles the hello endpoint
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	response := Response{
-		Message: "Hello from %s API",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response := Response{
-		Message: "API is healthy",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-`, responseStruct, projectName, projectName, projectName)
+		mainContent = pg.generateMainContent(moduleName, projectName, "gorilla")
+		routesContent = pg.RouterGenerator.generateGorillaContent()
 
 	case "httprouter":
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"github.com/` + moduleName + `/cmd/api"
-)
-
-func main() {
-	router := api.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, router))
-}
-`
-		routesContent = fmt.Sprintf(`package api
-
-import (
-	"encoding/json"
-	"net/http"
-
-	"github.com/julienschmidt/httprouter"
-)
-
-%s
-
-// SetupRoutes configures and returns the router with all routes
-func SetupRoutes() *httprouter.Router {
-	router := httprouter.New()
-
-	// Routes
-	router.GET("/api/hello", helloHandler)
-	router.GET("/api/health", healthHandler)
-
-	return router
-}
-
-// helloHandler handles the hello endpoint
-func helloHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	response := Response{
-		Message: "Hello from %s API",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response := Response{
-		Message: "API is healthy",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-`, responseStruct, projectName, projectName, projectName)
+		mainContent = pg.generateMainContent(moduleName, projectName, "httprouter")
+		routesContent = pg.RouterGenerator.generateHttpRouterContent()
 
 	default: // stdlib
-		mainContent = `package main
-
-import (
-	` + pg.setDefaultPackages() + `
-
-	"` + pg.setModuleName(moduleName, projectName) + `/cmd/api"
-)
-
-func main() {
-	api.SetupRoutes()
-
-	port := ":8080"
-	fmt.Printf("Starting ` + projectName + ` API server on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, nil))
-}
-`
-		routesContent = fmt.Sprintf(`package api
-
-import (
-	"encoding/json"
-	"net/http"
-)
-
-%s
-
-// SetupRoutes configures all HTTP routes
-func SetupRoutes() {
-	http.HandleFunc("/api/hello", helloHandler)
-	http.HandleFunc("/api/health", healthHandler)
-}
-
-// helloHandler handles the hello endpoint
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	response := Response{
-		Message: "Hello from %s API",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-
-// healthHandler handles the health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	response := Response{
-		Message: "API is healthy",
-		Service: "%s",
-	}
-	json.NewEncoder(w).Encode(response)
-}
-`, responseStruct, projectName, projectName, projectName)
+		mainContent = pg.generateMainContent(moduleName, projectName, "stdlib")
+		routesContent = pg.RouterGenerator.generateStdlibContent()
 	}
 
-	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+	mainGoPath := fmt.Sprintf("%s/main.go", baseDir)
+	routesPath := fmt.Sprintf("%s/cmd/web/routes.go", baseDir)
+	goModPath := fmt.Sprintf("%s/go.mod", baseDir)
+
+	if baseDir == "." {
+		mainGoPath = "main.go"
+		routesPath = "cmd/web/routes.go"
+		goModPath = "go.mod"
+	}
+
+	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0644); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile("cmd/api/routes.go", []byte(routesContent), 0644); err != nil {
+	if err := os.WriteFile(routesPath, []byte(routesContent), 0644); err != nil {
 		return err
 	}
 
-	if err := pg.CreateEnvFile("."); err != nil {
+	baseModuleName := pg.setModuleName(moduleName, projectName)
+	apiModContent := fmt.Sprintf("module %s\n\ngo 1.21\n", baseModuleName)
+	if err := os.WriteFile(goModPath, []byte(apiModContent), 0644); err != nil {
+		return err
+	}
+
+	if err := pg.CreateEnvFile("api", baseDir); err != nil {
 		fmt.Printf("Warning: failed to create env file: %v\n", err)
 	}
 
-	if err := pg.InitGitRepository(projectName, "api"); err != nil {
+	if err := pg.InitGitRepository(projectName, baseDir); err != nil {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
+	}
+
+	originalDir, _ := os.Getwd()
+	if baseDir != "." {
+		if err := os.Chdir(baseDir); err != nil {
+			return fmt.Errorf("failed to change to %s directory: %w", baseDir, err)
+		}
 	}
 
 	cmd := exec.Command("go", "mod", "tidy")
 	if err := cmd.Run(); err != nil {
+		if baseDir != "." {
+			os.Chdir(originalDir)
+		}
 		return fmt.Errorf("failed to tidy go.mod: %w", err)
+	}
+
+	if baseDir != "." {
+		if err := os.Chdir(originalDir); err != nil {
+			return fmt.Errorf("failed to change to original directory: %w", err)
+		}
 	}
 
 	return nil

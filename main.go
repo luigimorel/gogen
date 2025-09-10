@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log/slog"
+	"fmt"
 	"os"
 
 	"github.com/luigimorel/gogen/cmd"
@@ -11,7 +11,7 @@ func main() {
 	app := cmd.App()
 
 	if err := app.Run(os.Args); err != nil {
-		slog.Error("failed to start application", slog.String("error", err.Error()))
+		fmt.Fprintf(os.Stderr, "failed to start application: %v\n", err)
 		os.Exit(1)
 	}
 }

@@ -11,11 +11,6 @@ func (pg *ProjectGenerator) InitGitRepository(projectName, template string) erro
 		return fmt.Errorf("failed to initialize git repository: %w", err)
 	}
 
-	gitignoreContent := pg.createGitignoreContent(template)
-	if err := os.WriteFile(".gitignore", []byte(gitignoreContent), 0644); err != nil {
-		return fmt.Errorf("failed to create .gitignore: %w", err)
-	}
-
 	if err := exec.Command("git", "add", ".").Run(); err != nil {
 		return fmt.Errorf("failed to add files to git: %w", err)
 	}
@@ -28,24 +23,18 @@ func (pg *ProjectGenerator) InitGitRepository(projectName, template string) erro
 	return nil
 }
 
-func (pg *ProjectGenerator) createGitignoreContent(template string) string {
-	baseIgnore := `
-# Environment variables
-.env
-.env.local
-.env.*.local
-`
-
-	switch template {
-	case "web":
-		return baseIgnore + `
-# Frontend dependencies and build files
-
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
-`
-	default:
-		return baseIgnore
+func (pg *ProjectGenerator) RemoveGitRepository(dirName string) error {
+	if err := os.Chdir(dirName); err != nil {
+		return fmt.Errorf("failed to change directory: %w", err)
 	}
+
+	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.RemoveAll(".git"); err != nil {
+		return fmt.Errorf("failed to remove .git directory: %w", err)
+	}
+
+	return nil
 }

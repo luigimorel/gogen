@@ -6,48 +6,53 @@ import (
 	"path/filepath"
 )
 
-func (pg *ProjectGenerator) CreateEnvFile(dirName string) error {
+func (pg *ProjectGenerator) CreateEnvFile(dirType, dirName string) error {
 	var envContent string
-	if dirName == "api" {
+	if dirType == "api" {
 		envContent = `PORT=8080`
-	} else if dirName == "frontend" {
-		envContent = `
-VITE_API_URL=http://localhost:8080
+	} else {
+		envContent = `VITE_API_URL=http://localhost:8080
 VITE_API_BASE_PATH=/api
 
 # Development
 VITE_NODE_ENV=development
 `
-	} else if dirName == "." {
-		// Root level .env.example for API template
-		envContent = `PORT=8080`
 	}
 
-	envPath := filepath.Join(dirName, ".env.example")
+	envExamplePath := filepath.Join(dirName, ".env.example")
+	envPath := filepath.Join(dirName, ".env")
+
 	if dirName == "." {
-		envPath = ".env.example"
+		envExamplePath = ".env.example"
+		envPath = ".env"
+	}
+
+	if err := os.MkdirAll(filepath.Dir(envExamplePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for env files: %w", err)
+	}
+
+	if err := os.WriteFile(envExamplePath, []byte(envContent), 0644); err != nil {
+		return fmt.Errorf("failed to create .env.example: %w", err)
 	}
 
 	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
-		fmt.Printf("Warning: failed to create .env.example: %v\n", err)
+		return fmt.Errorf("failed to create .env: %w", err)
 	}
 
 	return nil
 }
 
-func (pg *ProjectGenerator) CreateGitignoreFile(dirName, template string) error {
+func (pg *ProjectGenerator) CreateGitignoreFile(dirType, dirName string) error {
 	var gitignoreContent string
 
-	if dirName == "api" {
-		gitignoreContent = `
-.env
+	if dirType == "api" {
+		gitignoreContent = `.env
 .env.local
 .env.production.local
 .env.*.local
 `
-	} else if dirName == "frontend" {
-		gitignoreContent = `# Logs
-logs
+	} else if dirType == "frontend" {
+		gitignoreContent = `logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -70,6 +75,10 @@ dist-ssr
 	gitignorePath := filepath.Join(dirName, ".gitignore")
 	if dirName == "." {
 		gitignorePath = ".gitignore"
+	}
+
+	if err := os.MkdirAll(filepath.Dir(gitignorePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for .gitignore: %w", err)
 	}
 
 	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
