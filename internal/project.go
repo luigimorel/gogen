@@ -125,7 +125,7 @@ func main() {
 	return cmd.Run()
 }
 
-func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework string, useTypeScript bool, runtime string) error {
+func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework string, useTypeScript bool, runtime string, useTailwind bool) error {
 	if err := pg.createAPIProjectInDir("api", projectName, moduleName, router); err != nil {
 		return fmt.Errorf("failed to create API project: %w", err)
 	}
@@ -144,7 +144,7 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 		return fmt.Errorf("failed to change back to original directory: %w", err)
 	}
 
-	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime); err != nil {
+	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime, useTailwind); err != nil {
 		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
@@ -158,8 +158,6 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 
 	if err := pg.RemoveGitRepository("."); err != nil {
 		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
-	} else {
-		fmt.Println("Removed git repository from frontend")
 	}
 
 	return nil
@@ -206,7 +204,7 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		mainContent = pg.generateMainContent(moduleName, projectName, "httprouter")
 		routesContent = pg.RouterGenerator.generateHttpRouterContent()
 
-	default: // stdlib
+	default:
 		mainContent = pg.generateMainContent(moduleName, projectName, "stdlib")
 		routesContent = pg.RouterGenerator.generateStdlibContent()
 	}

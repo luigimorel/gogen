@@ -18,9 +18,10 @@ type ProjectCreator struct {
 	DirName           string
 	UseTypeScript     bool
 	Runtime           string
+	UseTailwind       bool
 }
 
-func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir string, useTypeScript bool, runtime string) *ProjectCreator {
+func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir string, useTypeScript bool, runtime string, useTailwind bool) *ProjectCreator {
 	if projectDir == "" {
 		projectDir = name
 	}
@@ -34,6 +35,7 @@ func NewProjectCreator(name, moduleName, template, router, frontendFramework, pr
 		FrontendFramework: frontendFramework,
 		UseTypeScript:     useTypeScript,
 		Runtime:           runtime,
+		UseTailwind:       useTailwind,
 	}
 }
 
@@ -78,12 +80,17 @@ This command will create a new directory, initialize a Go module, and create a n
 			},
 			&cli.StringFlag{
 				Name:  "runtime",
-				Usage: "JavaScript runtime to use (node, deno, bun)",
+				Usage: "JavaScript runtime to use (node, bun)",
 				Value: "node",
 			},
 			&cli.BoolFlag{
 				Name:  "ts",
 				Usage: "Use TypeScript for frontend projects (only applicable with --frontend)",
+				Value: false,
+			},
+			&cli.BoolFlag{
+				Name:  "tailwind",
+				Usage: "Add Tailwind CSS to frontend projects (only applicable with --frontend)",
 				Value: false,
 			},
 		},
@@ -96,6 +103,7 @@ This command will create a new directory, initialize a Go module, and create a n
 			projectDir := c.String("dir")
 			useTypeScript := c.Bool("ts")
 			runtime := c.String("runtime")
+			useTailwind := c.Bool("tailwind")
 
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
@@ -103,7 +111,7 @@ This command will create a new directory, initialize a Go module, and create a n
 				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
 			}
 
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript, runtime)
+			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript, runtime, useTailwind)
 			return creator.execute()
 		},
 	}
@@ -146,6 +154,10 @@ func (pc *ProjectCreator) validate() error {
 
 	if pc.UseTypeScript && pc.FrontendFramework == "" {
 		return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
+	}
+
+	if pc.UseTailwind && pc.FrontendFramework == "" {
+		return fmt.Errorf("tailwind flag is only applicable when frontend is specified")
 	}
 
 	return nil
@@ -196,7 +208,7 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	case "cli":
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
 	case "web":
-		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.UseTypeScript, pc.Runtime)
+		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.UseTypeScript, pc.Runtime, pc.UseTailwind)
 	case "api":
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
 	default:
