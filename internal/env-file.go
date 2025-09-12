@@ -42,6 +42,42 @@ VITE_NODE_ENV=development
 	return nil
 }
 
+func (pg *ProjectGenerator) CreateEnvConfig(dirName, framework string, useTypeScript bool) error {
+	if framework == "angular" {
+		return nil
+	}
+
+	fileExt := "js"
+	if useTypeScript {
+		fileExt = "ts"
+	}
+
+	configContent := `/// <reference types="vite/client" />
+
+interface ImportMeta {
+  env: {
+    VITE_API_URL: string;
+    VITE_API_BASE_PATH: string;
+    VITE_NODE_ENV: string;
+  };
+}
+
+export const config = {
+  apiUrl: import.meta.env.VITE_API_URL,
+  apiBasePath: import.meta.env.VITE_API_BASE_PATH,
+  nodeEnv: import.meta.env.VITE_NODE_ENV,
+};
+
+export default config;
+`
+
+	if err := os.WriteFile(filepath.Join(dirName, "src", "config."+fileExt), []byte(configContent), 0600); err != nil {
+		return fmt.Errorf("failed to create env config file: %w", err)
+	}
+
+	return nil
+}
+
 func (pg *ProjectGenerator) CreateGitignoreFile(dirType, dirName string) error {
 	var gitignoreContent string
 
