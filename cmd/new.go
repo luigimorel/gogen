@@ -80,7 +80,7 @@ This command will create a new directory, initialize a Go module, and create a n
 			},
 			&cli.StringFlag{
 				Name:  "runtime",
-				Usage: "JavaScript runtime to use (node, deno, bun)",
+				Usage: "JavaScript runtime to use (node, bun)",
 				Value: "node",
 			},
 			&cli.BoolFlag{

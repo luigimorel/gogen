@@ -16,7 +16,6 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 
 	packageManager := map[string]string{
 		"bun":  "bun",
-		"deno": "npm",
 		"node": "npm",
 	}[runtime]
 
@@ -124,11 +123,6 @@ func (pg *ProjectGenerator) getCreateCommand(runtime string, args ...string) *ex
 			return exec.Command("bun", bunArgs...)
 		}
 		return exec.Command("bun", args...)
-	case "deno":
-		if args[0] == "create" {
-			return exec.Command("npm", args...)
-		}
-		return exec.Command("deno", args...)
 	default:
 		return exec.Command("npm", args...)
 	}
@@ -142,7 +136,7 @@ func (pg *ProjectGenerator) getSvelteCommand(runtime, dirName, typeOption string
 			"--types", typeOption,
 			"--no-add-ons",
 			"--install", "bun")
-	default: // node or deno
+	default:
 		return exec.Command("npx", "sv", "create", dirName,
 			"--template", "minimal",
 			"--types", typeOption,

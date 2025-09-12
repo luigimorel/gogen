@@ -56,64 +56,21 @@ func (tc *TailwindConfig) InstallTailwindCSS() error {
 	fmt.Println("✅ Tailwind CSS configured successfully!")
 	return nil
 }
-
 func (tc *TailwindConfig) tailwindLibInstall(framework, runtime string) error {
-	viteTailwind := []string{"tailwindcss", "@tailwindcss/vite"}
-	args := append([]string{"add"}, viteTailwind...)
 	if runtime == "node" {
 		runtime = "npm"
 	}
 
 	switch framework {
-	case "react":
-		switch runtime {
-		case "bun":
-			return exec.Command(runtime, args...).Run()
-		case "deno":
-			return exec.Command("deno", "install", "--allow-read", "--allow-write", "--allow-net", "https://cdn.skypack.dev/tailwindcss").Run()
-		default:
-			return exec.Command(runtime, args...).Run()
-		}
-
-	case "vue":
-		switch runtime {
-		case "bun":
-			return exec.Command(runtime, args...).Run()
-		case "deno":
-			return exec.Command("deno", "install", "--allow-read", "--allow-write", "--allow-net", "https://cdn.skypack.dev/tailwindcss").Run()
-		default:
-			return exec.Command(runtime, args...).Run()
-		}
-
-	case "svelte":
-		switch runtime {
-		case "bun":
-			return exec.Command(runtime, args...).Run()
-		case "deno":
-			return exec.Command("deno", "install", "--allow-read", "--allow-write", "--allow-net", "https://cdn.skypack.dev/tailwindcss").Run()
-		default:
-			return exec.Command(runtime, args...).Run()
-		}
+	case "react", "vue", "svelte", "solidjs":
+		args := append([]string{"add"}, "tailwindcss", "@tailwindcss/vite")
+		return exec.Command(runtime, args...).Run()
 
 	case "angular":
-		switch runtime {
-		case "bun":
+		if runtime == "bun" {
 			return exec.Command(runtime, "add", "tailwindcss", "@tailwindcss/postcss", "postcss", "--force").Run()
-		case "deno":
-			return exec.Command("deno", "install", "--allow-read", "--allow-write", "--allow-net", "https://cdn.skypack.dev/tailwindcss").Run()
-		default:
-			return exec.Command("npm", "install", "tailwindcss", "@tailwindcss/postcss", "postcss", "--force").Run()
 		}
-
-	case "solidjs":
-		switch runtime {
-		case "bun":
-			return exec.Command(runtime, args...).Run()
-		case "deno":
-			return exec.Command("deno", "install", "--allow-read", "--allow-write", "--allow-net", "https://cdn.skypack.dev/tailwindcss").Run()
-		default:
-			return exec.Command(runtime, args...).Run()
-		}
+		return exec.Command("npm", "install", "tailwindcss", "@tailwindcss/postcss", "postcss", "--force").Run()
 
 	default:
 		return fmt.Errorf("unsupported framework: %s", framework)
