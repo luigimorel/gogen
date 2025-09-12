@@ -156,6 +156,10 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 		fmt.Printf("Warning: failed to create env file: %v\n", err)
 	}
 
+	if err := pg.CreateEnvConfig(".", frontendFramework, useTypeScript); err != nil {
+		fmt.Printf("Warning: failed to create env config file: %v\n", err)
+	}
+
 	if err := pg.RemoveGitRepository("."); err != nil {
 		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
 	}
