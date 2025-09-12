@@ -6,8 +6,19 @@ import (
 	"os/exec"
 )
 
-func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, useTypeScript bool, runtime string) error {
+func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, useTypeScript bool, runtime string, useTailwind bool) error {
 	fmt.Printf("DEBUG: Creating frontend project with runtime: %s, framework: %s, dir: %s, typescript: %v\n", runtime, framework, dirName, useTypeScript)
+	allowPrompts := "--"
+
+	if runtime == "bun" {
+		allowPrompts = ""
+	}
+
+	packageManager := map[string]string{
+		"bun":  "bun",
+		"deno": "npm",
+		"node": "npm",
+	}[runtime]
 
 	//TODO: Remove directory if it exists?
 	if _, err := os.Stat(dirName); err == nil {
@@ -22,31 +33,31 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 		if useTypeScript {
 			template = "react-ts"
 		}
-		cmd = pg.getCreateCommand(runtime, "create", "vite@latest", dirName, "--", "--template", template)
+		cmd = pg.getCreateCommand(packageManager, "create", "vite@latest", dirName, allowPrompts, "--template", template)
 
 	case "vue":
-		args := []string{"create", "vue@latest", dirName, "--", "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier"}
+		args := []string{"create", "vue@latest", dirName, allowPrompts, "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier"}
 		if useTypeScript {
 			args = append(args, "--ts")
 		}
-		cmd = pg.getCreateCommand(runtime, args...)
+		cmd = pg.getCreateCommand(packageManager, args...)
 
 	case "svelte":
 		mode := "jsdoc"
 		if useTypeScript {
 			mode = "ts"
 		}
-		cmd = pg.getSvelteCommand(runtime, dirName, mode)
+		cmd = pg.getSvelteCommand(packageManager, dirName, mode)
 
 	case "solidjs":
 		mode := "js"
 		if useTypeScript {
 			mode = "ts"
 		}
-		cmd = pg.getSolidCommand(runtime, dirName, mode)
+		cmd = pg.getSolidCommand(packageManager, dirName, mode)
 
 	case "angular":
-		args := []string{"new", dirName, "--routing=true", "--style=css", "--skip-git=true"}
+		args := []string{"new", dirName, "--routing=true", "--style=css", "--skip-git=true", "--package-manager=" + packageManager}
 		if useTypeScript {
 			args = append(args, "--strict=true")
 		}
@@ -65,12 +76,17 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 	}
 
 	// Install dependencies for non-Angular projects (Angular CLI handles this automatically)
-	if framework == "angular" {
-		return nil
+	if framework != "angular" {
+		if err := pg.installDependencies(runtime, dirName); err != nil {
+			return err
+		}
 	}
 
-	if err := pg.installDependencies(runtime, dirName); err != nil {
-		return err
+	if useTailwind {
+		tailwindConfig := NewTailwindConfig(framework, runtime, dirName)
+		if err := tailwindConfig.InstallTailwindCSS(); err != nil {
+			return fmt.Errorf("failed to install Tailwind CSS: %w", err)
+		}
 	}
 
 	return nil
@@ -126,13 +142,7 @@ func (pg *ProjectGenerator) getSvelteCommand(runtime, dirName, typeOption string
 			"--types", typeOption,
 			"--no-add-ons",
 			"--install", "bun")
-	case "deno":
-		return exec.Command("npx", "sv", "create", dirName,
-			"--template", "minimal",
-			"--types", typeOption,
-			"--no-add-ons",
-			"--install", "npm")
-	default:
+	default: // node or deno
 		return exec.Command("npx", "sv", "create", dirName,
 			"--template", "minimal",
 			"--types", typeOption,
@@ -145,8 +155,6 @@ func (pg *ProjectGenerator) getSolidCommand(runtime, dirName, template string) *
 	switch runtime {
 	case "bun":
 		return exec.Command("bunx", "--yes", "degit", fmt.Sprintf("solidjs/templates/%s", template), dirName, "--force")
-	case "deno":
-		return exec.Command("npx", "--yes", "degit", fmt.Sprintf("solidjs/templates/%s", template), dirName, "--force")
 	default:
 		return exec.Command("npx", "--yes", "degit", fmt.Sprintf("solidjs/templates/%s", template), dirName, "--force")
 	}
@@ -156,8 +164,6 @@ func (pg *ProjectGenerator) getInstallCommand(runtime string) *exec.Cmd {
 	switch runtime {
 	case "bun":
 		return exec.Command("bun", "install")
-	case "deno":
-		return exec.Command("npm", "install")
 	default:
 		return exec.Command("npm", "install")
 	}

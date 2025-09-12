@@ -14,14 +14,16 @@ type FrontendManager struct {
 	DirName       string
 	UseTypeScript bool
 	Runtime       string
+	UseTailwind   bool
 }
 
-func NewFrontendManager(frameworkType, dirName, runtime string, useTypeScript bool) *FrontendManager {
+func NewFrontendManager(frameworkType, dirName, runtime string, useTypeScript bool, useTailwind bool) *FrontendManager {
 	return &FrontendManager{
 		FrameworkType: frameworkType,
 		DirName:       dirName,
 		UseTypeScript: useTypeScript,
 		Runtime:       runtime,
+		UseTailwind:   useTailwind,
 	}
 }
 
@@ -49,7 +51,7 @@ Usage:
   gogen frontend react
   gogen frontend vue --typescript
   gogen frontend svelte --dir client --runtime bun
-  gogen frontend react --runtime deno`,
+  gogen frontend react --runtime deno --tailwind`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "dir",
@@ -69,6 +71,12 @@ Usage:
 				Usage:   "JavaScript runtime to use (node, deno, bun)",
 				Value:   "node",
 			},
+			&cli.BoolFlag{
+				Name:    "tailwind",
+				Aliases: []string{"tw"},
+				Usage:   "Add Tailwind CSS to the project",
+				Value:   false,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
@@ -79,10 +87,11 @@ Usage:
 			dirName := c.String("dir")
 			useTypeScript := c.Bool("typescript")
 			runtime := c.String("runtime")
+			useTailwind := c.Bool("tailwind")
 
-			fmt.Printf("DEBUG CLI: framework=%s, dir=%s, typescript=%v, runtime=%s\n", frameworkType, dirName, useTypeScript, runtime)
+			fmt.Printf("DEBUG CLI: framework=%s, dir=%s, typescript=%v, runtime=%s, tailwind=%v\n", frameworkType, dirName, useTypeScript, runtime, useTailwind)
 
-			manager := NewFrontendManager(frameworkType, dirName, runtime, useTypeScript)
+			manager := NewFrontendManager(frameworkType, dirName, runtime, useTypeScript, useTailwind)
 			return manager.execute()
 		},
 	}
@@ -94,7 +103,7 @@ func (fm *FrontendManager) execute() error {
 	}
 
 	pg := internal.NewProjectGenerator()
-	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript, fm.Runtime); err != nil {
+	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript, fm.Runtime, fm.UseTailwind); err != nil {
 		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
