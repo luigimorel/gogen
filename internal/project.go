@@ -125,7 +125,7 @@ func main() {
 	return cmd.Run()
 }
 
-func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework string, useTypeScript bool, runtime string, useTailwind bool) error {
+func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework, runtime string, useTypeScript bool, useTailwind bool) error {
 	if err := pg.createAPIProjectInDir("api", projectName, moduleName, router); err != nil {
 		return fmt.Errorf("failed to create API project: %w", err)
 	}
