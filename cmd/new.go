@@ -19,9 +19,10 @@ type ProjectCreator struct {
 	UseTypeScript     bool
 	Runtime           string
 	UseTailwind       bool
+	Editor            string
 }
 
-func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir string, useTypeScript bool, runtime string, useTailwind bool) *ProjectCreator {
+func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir, runtime, editor string, useTypeScript, useTailwind bool) *ProjectCreator {
 	if projectDir == "" {
 		projectDir = name
 	}
@@ -36,6 +37,7 @@ func NewProjectCreator(name, moduleName, template, router, frontendFramework, pr
 		UseTypeScript:     useTypeScript,
 		Runtime:           runtime,
 		UseTailwind:       useTailwind,
+		Editor:            editor,
 	}
 }
 
@@ -93,6 +95,10 @@ This command will create a new directory, initialize a Go module, and create a n
 				Usage: "Add Tailwind CSS to frontend projects (only applicable with --frontend)",
 				Value: false,
 			},
+			&cli.StringFlag{
+				Name:  "editor",
+				Usage: "Add an LLM template for the specified editor (cursor, vscode, jetbrains)",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			projectName := c.String("name")
@@ -104,6 +110,7 @@ This command will create a new directory, initialize a Go module, and create a n
 			useTypeScript := c.Bool("ts")
 			runtime := c.String("runtime")
 			useTailwind := c.Bool("tailwind")
+			editor := c.String("editor")
 
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
@@ -111,7 +118,7 @@ This command will create a new directory, initialize a Go module, and create a n
 				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
 			}
 
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript, runtime, useTailwind)
+			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind)
 			return creator.execute()
 		},
 	}
@@ -140,6 +147,14 @@ func (pc *ProjectCreator) execute() error {
 
 	if err := pc.createProjectFiles(); err != nil {
 		return fmt.Errorf("failed to create project files: %w", err)
+	}
+
+	if pc.Editor != "" {
+		if err := pc.createEditorLLMRules(); err != nil {
+			fmt.Printf("Warning: failed to create LLM rules for %s: %v\n", pc.Editor, err)
+		} else {
+			fmt.Printf("Created LLM rules for %s\n", pc.Editor)
+		}
 	}
 
 	pc.printNextSteps()
@@ -208,12 +223,22 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	case "cli":
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
 	case "web":
-		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.UseTypeScript, pc.Runtime, pc.UseTailwind)
+		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.Runtime, pc.UseTypeScript, pc.UseTailwind)
 	case "api":
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
 	default:
 		return fmt.Errorf("unsupported template: %s", pc.Template)
 	}
+}
+
+func (pc *ProjectCreator) createEditorLLMRules() error {
+	if err := os.Chdir(".."); err != nil {
+		return fmt.Errorf("failed to change to project root directory: %w", err)
+	}
+	defer os.Chdir(pc.DirName)
+
+	llmTemplate := internal.NewLLMTemplate()
+	return llmTemplate.CreateTemplate(pc.Editor, pc.FrontendFramework, pc.Runtime, pc.Router)
 }
 
 func (pc *ProjectCreator) printNextSteps() {
