@@ -33,7 +33,7 @@ func (lt *LLMTemplate) CreateTemplate(template, frontendFramework, runtime, rout
 		return fmt.Errorf("unsupported template: %s", template)
 	}
 
-	return os.WriteFile(filePath, []byte(content), 0644)
+	return os.WriteFile(filePath, []byte(content), 0600)
 }
 
 func (lt *LLMTemplate) generateCursorContent(frontendFramework, runtime, router string) string {
@@ -51,34 +51,34 @@ This is a Go project using:
 - Frontend: %s framework`, frontendFramework)
 
 		switch frontendFramework {
-		case "react":
+		case react:
 			baseContent += `
 - React components with hooks and modern patterns
 - JSX/TSX for component templates`
-		case "vue":
+		case vue:
 			baseContent += `
 - Vue 3 composition API
 - Single File Components (SFC)`
-		case "svelte":
+		case svelte:
 			baseContent += `
 - Svelte components with reactive statements
 - SvelteKit for full-stack applications`
-		case "solidjs":
+		case solidjs:
 			baseContent += `
 - SolidJS with fine-grained reactivity
 - JSX templating with solid patterns`
-		case "angular":
+		case angular:
 			baseContent += `
 - Angular with TypeScript
 - Component-based architecture with dependency injection`
 		}
 	}
 
-	if runtime != "" && runtime != "node" {
+	if runtime != "" && runtime != node {
 		baseContent += fmt.Sprintf(`
 - JavaScript runtime: %s`, runtime)
 
-		if runtime == "bun" {
+		if runtime == bun {
 			baseContent += `
 - Fast package management and bundling with Bun
 - TypeScript support out of the box`
@@ -144,7 +144,7 @@ This is a Go project using:
 - Implement loading states and error boundaries`
 
 		switch frontendFramework {
-		case "react":
+		case react:
 			content += `
 
 ### React-Specific Rules
@@ -153,7 +153,7 @@ This is a Go project using:
 - Use proper key props for list items
 - Implement proper cleanup in useEffect
 - Use TypeScript for better type safety (if enabled)`
-		case "vue":
+		case vue:
 			content += `
 
 ### Vue-Specific Rules
@@ -161,7 +161,7 @@ This is a Go project using:
 - Follow Vue 3 best practices
 - Use proper reactive references and computed properties
 - Implement proper component lifecycle management`
-		case "svelte":
+		case svelte:
 			content += `
 
 ### Svelte-Specific Rules
@@ -169,7 +169,7 @@ This is a Go project using:
 - Follow Svelte best practices for component communication
 - Use stores for global state management
 - Implement proper component lifecycle`
-		case "solidjs":
+		case solidjs:
 			content += `
 
 ### SolidJS-Specific Rules
@@ -177,7 +177,7 @@ This is a Go project using:
 - Follow SolidJS patterns for reactivity
 - Implement proper resource management
 - Use JSX patterns specific to SolidJS`
-		case "angular":
+		case angular:
 			content += `
 
 ### Angular-Specific Rules
@@ -187,7 +187,7 @@ This is a Go project using:
 - Implement proper component lifecycle hooks`
 		}
 
-		if runtime == "bun" {
+		if runtime == bun {
 			content += `
 
 ### Bun Runtime Guidelines
@@ -218,17 +218,17 @@ func (lt *LLMTemplate) generateVSCodeContent(frontendFramework, runtime, router 
         "css": true`
 
 		switch frontendFramework {
-		case "react":
+		case react:
 			baseSettings += `,
         "javascriptreact": true,
         "typescriptreact": true`
-		case "vue":
+		case vue:
 			baseSettings += `,
         "vue": true`
-		case "svelte":
+		case svelte:
 			baseSettings += `,
         "svelte": true`
-		case "angular":
+		case angular:
 			baseSettings += `,
         "html": true`
 		}
@@ -266,7 +266,7 @@ func (lt *LLMTemplate) generateVSCodeContent(frontendFramework, runtime, router 
 
 	if frontendFramework != "" {
 		switch frontendFramework {
-		case "react":
+		case react:
 			baseSettings += `,
     "typescript.preferences.includePackageJsonAutoImports": "on",
     "typescript.suggest.autoImports": true,
@@ -276,23 +276,23 @@ func (lt *LLMTemplate) generateVSCodeContent(frontendFramework, runtime, router 
         "typescript": "typescriptreact"
     },
     "emmet.triggerExpansionOnTab": true`
-		case "vue":
+		case vue:
 			baseSettings += `,
     "vetur.validation.template": false,
     "vetur.validation.script": false,
     "vetur.validation.style": false,
     "volar.takeOverMode": true`
-		case "svelte":
+		case svelte:
 			baseSettings += `,
     "svelte.enable-ts-plugin": true,
     "typescript.preferences.includePackageJsonAutoImports": "on"`
-		case "angular":
+		case angular:
 			baseSettings += `,
     "typescript.preferences.includePackageJsonAutoImports": "on",
     "angular.enableCodeCompletion": true`
 		}
 
-		if runtime == "bun" {
+		if runtime == bun {
 			baseSettings += `,
     "terminal.integrated.defaultProfile.linux": "bash",
     "npm.packageManager": "bun"`
@@ -320,19 +320,19 @@ This is a Go project with the following characteristics:
 - Frontend framework: %s`, frontendFramework)
 
 		switch frontendFramework {
-		case "react":
+		case react:
 			baseContent += ` with modern hooks and functional components`
-		case "vue":
+		case vue:
 			baseContent += ` with Composition API and SFC`
-		case "svelte":
+		case svelte:
 			baseContent += ` with reactive statements and SvelteKit`
-		case "solidjs":
+		case solidjs:
 			baseContent += ` with fine-grained reactivity`
-		case "angular":
+		case angular:
 			baseContent += ` with TypeScript and dependency injection`
 		}
 
-		if runtime == "bun" {
+		if runtime == bun {
 			baseContent += fmt.Sprintf(`
 - JavaScript runtime: %s for fast package management and execution`, runtime)
 		}
@@ -401,33 +401,33 @@ This is a Go project with the following characteristics:
 ### Frontend Best Practices`
 
 		switch frontendFramework {
-		case "react":
+		case react:
 			content += `
 - Use functional components with hooks
 - Implement proper error boundaries
 - Use React.memo for performance optimization
 - Follow React testing library best practices
 - Use proper TypeScript types when applicable`
-		case "vue":
+		case vue:
 			content += `
 - Use Composition API for new components
 - Implement proper reactive state management
 - Use Vue 3 best practices for component communication
 - Follow Vue testing utils conventions
 - Ensure proper component lifecycle management`
-		case "svelte":
+		case svelte:
 			content += `
 - Use reactive statements ($:) appropriately
 - Implement proper store patterns for state management
 - Follow SvelteKit conventions for routing and data loading
 - Use proper component communication patterns`
-		case "solidjs":
+		case solidjs:
 			content += `
 - Use signals and effects properly
 - Implement proper resource management
 - Follow SolidJS patterns for reactivity
 - Use proper JSX patterns specific to SolidJS`
-		case "angular":
+		case angular:
 			content += `
 - Follow Angular style guide conventions
 - Use proper dependency injection patterns
@@ -436,7 +436,7 @@ This is a Go project with the following characteristics:
 - Follow RxJS best practices for reactive programming`
 		}
 
-		if runtime == "bun" {
+		if runtime == bun {
 			content += `
 
 ### Bun Runtime Optimization

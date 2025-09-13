@@ -8,6 +8,14 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// Router type constants
+const (
+	RouterStdlib     = "stdlib"
+	RouterChi        = "chi"
+	RouterGorilla    = "gorilla"
+	RouterHttpRouter = "httprouter"
+)
+
 type Router struct {
 	Type       string
 	UpdateMain bool
@@ -92,14 +100,14 @@ func (r *Router) installDependency() error {
 	var dependency string
 
 	switch r.Type {
-	case "stdlib":
+	case RouterStdlib:
 		fmt.Println("Using standard library http.ServeMux - no additional dependency needed")
 		return nil
-	case "chi":
+	case RouterChi:
 		dependency = "github.com/go-chi/chi/v5"
-	case "gorilla":
+	case RouterGorilla:
 		dependency = "github.com/gorilla/mux"
-	case "httprouter":
+	case RouterHttpRouter:
 		dependency = "github.com/julienschmidt/httprouter"
 	default:
 		return fmt.Errorf("unsupported router type: %s", r.Type)
@@ -127,10 +135,10 @@ func (r *Router) updateMainFile() error {
 	newContent := r.generateMainContent(string(mainContent))
 
 	backupPath := "main.go.backup"
-	if err := os.WriteFile(backupPath, mainContent, 0644); err != nil {
+	if err := os.WriteFile(backupPath, mainContent, 0600); err != nil {
 		fmt.Printf("Warning: failed to create backup at %s: %v\n", backupPath, err)
 	}
-	if err := os.WriteFile("main.go", []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile("main.go", []byte(newContent), 0600); err != nil {
 		return fmt.Errorf("failed to write updated main.go: %w", err)
 	}
 
@@ -139,13 +147,13 @@ func (r *Router) updateMainFile() error {
 
 func (r *Router) generateMainContent(existingContent string) string {
 	switch r.Type {
-	case "stdlib":
+	case RouterStdlib:
 		return r.generateServeMuxContent()
-	case "chi":
+	case RouterChi:
 		return r.generateChiContent()
-	case "gorilla":
+	case RouterGorilla:
 		return r.generateGorillaContent()
-	case "httprouter":
+	case RouterHttpRouter:
 		return r.generateHttpRouterContent()
 	default:
 		return existingContent
@@ -159,22 +167,22 @@ func (r *Router) printInstructions() {
 	fmt.Println("   curl http://localhost:8080/api/health")
 
 	switch r.Type {
-	case "chi":
+	case RouterChi:
 		fmt.Println("\nChi router features:")
 		fmt.Println("   - Built-in middleware (Logger, Recoverer, RequestID)")
 		fmt.Println("   - Route groups and subrouting")
 		fmt.Println("   - Fast and lightweight")
-	case "gorilla":
+	case RouterGorilla:
 		fmt.Println("\nGorilla Mux features:")
 		fmt.Println("   - Path variables: r.HandleFunc(\"/users/{id}\", handler)")
 		fmt.Println("   - Query parameter matching")
 		fmt.Println("   - Host and scheme matching")
-	case "httprouter":
+	case RouterHttpRouter:
 		fmt.Println("\nHttpRouter features:")
 		fmt.Println("   - Extremely fast performance")
 		fmt.Println("   - Path parameters: router.GET(\"/users/:id\", handler)")
 		fmt.Println("   - Zero memory allocation")
-	case "stdlib":
+	case RouterStdlib:
 		fmt.Println("\nhttp.ServeMux features:")
 		fmt.Println("   - Part of Go standard library")
 		fmt.Println("   - Simple and reliable")

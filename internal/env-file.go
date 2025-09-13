@@ -31,11 +31,11 @@ VITE_NODE_ENV=development
 		return fmt.Errorf("failed to create directory for env files: %w", err)
 	}
 
-	if err := os.WriteFile(envExamplePath, []byte(envContent), 0644); err != nil {
+	if err := os.WriteFile(envExamplePath, []byte(envContent), 0600); err != nil {
 		return fmt.Errorf("failed to create .env.example: %w", err)
 	}
 
-	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+	if err := os.WriteFile(envPath, []byte(envContent), 0600); err != nil {
 		return fmt.Errorf("failed to create .env: %w", err)
 	}
 
@@ -43,7 +43,7 @@ VITE_NODE_ENV=development
 }
 
 func (pg *ProjectGenerator) CreateEnvConfig(dirName, framework string, useTypeScript bool) error {
-	if framework == "angular" {
+	if framework == angular {
 		return nil
 	}
 
@@ -117,7 +117,7 @@ dist-ssr
 		return fmt.Errorf("failed to create directory for .gitignore: %w", err)
 	}
 
-	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
+	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0600); err != nil {
 		return fmt.Errorf("failed to create .gitignore in %s: %w", dirName, err)
 	}
 

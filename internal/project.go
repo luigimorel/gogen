@@ -113,7 +113,7 @@ func main() {
 }
 `, projectName)
 
-	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+	if err := os.WriteFile("main.go", []byte(mainContent), 0600); err != nil {
 		return err
 	}
 
@@ -136,7 +136,9 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 	}
 
 	if err := pg.createConfigFiles(); err != nil {
-		os.Chdir(originalDir)
+		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+			return fmt.Errorf("failed to create config files and to change back to original directory: %w, %w", err, chdirErr)
+		}
 		return fmt.Errorf("failed to create config files: %w", err)
 	}
 
@@ -223,17 +225,17 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		goModPath = "go.mod"
 	}
 
-	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0644); err != nil {
+	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0600); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(routesPath, []byte(routesContent), 0644); err != nil {
+	if err := os.WriteFile(routesPath, []byte(routesContent), 0600); err != nil {
 		return err
 	}
 
 	baseModuleName := pg.setModuleName(moduleName, projectName)
 	apiModContent := fmt.Sprintf("module %s\n\ngo 1.21\n", baseModuleName)
-	if err := os.WriteFile(goModPath, []byte(apiModContent), 0644); err != nil {
+	if err := os.WriteFile(goModPath, []byte(apiModContent), 0600); err != nil {
 		return err
 	}
 
@@ -255,7 +257,9 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 	cmd := exec.Command("go", "mod", "tidy")
 	if err := cmd.Run(); err != nil {
 		if baseDir != "." {
-			os.Chdir(originalDir)
+			if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+				return fmt.Errorf("failed to tidy go.mod and to change back to original directory: %w, %w", err, chdirErr)
+			}
 		}
 		return fmt.Errorf("failed to tidy go.mod: %w", err)
 	}

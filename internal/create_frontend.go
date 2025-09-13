@@ -6,17 +6,30 @@ import (
 	"os/exec"
 )
 
+const (
+	react   = "react"
+	vue     = "vue"
+	svelte  = "svelte"
+	solidjs = "solidjs"
+	angular = "angular"
+)
+
+const (
+	bun  = "bun"
+	node = "node"
+)
+
 func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, useTypeScript bool, runtime string, useTailwind bool) error {
 	fmt.Printf("DEBUG: Creating frontend project with runtime: %s, framework: %s, dir: %s, typescript: %v\n", runtime, framework, dirName, useTypeScript)
 	allowPrompts := "--"
 
-	if runtime == "bun" {
+	if runtime == bun {
 		allowPrompts = ""
 	}
 
 	packageManager := map[string]string{
-		"bun":  "bun",
-		"node": "npm",
+		bun:  bun,
+		node: "npm",
 	}[runtime]
 
 	//TODO: Remove directory if it exists?
@@ -27,35 +40,35 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 	var cmd *exec.Cmd
 
 	switch framework {
-	case "react":
-		template := "react"
+	case react:
+		template := react
 		if useTypeScript {
 			template = "react-ts"
 		}
 		cmd = pg.getCreateCommand(packageManager, "create", "vite@latest", dirName, allowPrompts, "--template", template)
 
-	case "vue":
+	case vue:
 		args := []string{"create", "vue@latest", dirName, allowPrompts, "--jsx", "--router", "--pinia", "--vitest", "--playwright", "--eslint", "--prettier"}
 		if useTypeScript {
 			args = append(args, "--ts")
 		}
 		cmd = pg.getCreateCommand(packageManager, args...)
 
-	case "svelte":
+	case svelte:
 		mode := "jsdoc"
 		if useTypeScript {
 			mode = "ts"
 		}
 		cmd = pg.getSvelteCommand(packageManager, dirName, mode)
 
-	case "solidjs":
+	case solidjs:
 		mode := "js"
 		if useTypeScript {
 			mode = "ts"
 		}
 		cmd = pg.getSolidCommand(packageManager, dirName, mode)
 
-	case "angular":
+	case angular:
 		args := []string{"new", dirName, "--routing=true", "--style=css", "--skip-git=true", "--package-manager=" + packageManager}
 		if useTypeScript {
 			args = append(args, "--strict=true")
@@ -75,7 +88,7 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 	}
 
 	// Install dependencies for non-Angular projects (Angular CLI handles this automatically)
-	if framework != "angular" {
+	if framework != angular {
 		if err := pg.installDependencies(runtime, dirName); err != nil {
 			return err
 		}
@@ -117,12 +130,12 @@ func (pg *ProjectGenerator) installDependencies(runtime, dirName string) error {
 
 func (pg *ProjectGenerator) getCreateCommand(runtime string, args ...string) *exec.Cmd {
 	switch runtime {
-	case "bun":
+	case bun:
 		if args[0] == "create" {
 			bunArgs := append([]string{"create"}, args[1:]...)
-			return exec.Command("bun", bunArgs...)
+			return exec.Command(bun, bunArgs...)
 		}
-		return exec.Command("bun", args...)
+		return exec.Command(bun, args...)
 	default:
 		return exec.Command("npm", args...)
 	}
@@ -130,12 +143,12 @@ func (pg *ProjectGenerator) getCreateCommand(runtime string, args ...string) *ex
 
 func (pg *ProjectGenerator) getSvelteCommand(runtime, dirName, typeOption string) *exec.Cmd {
 	switch runtime {
-	case "bun":
+	case bun:
 		return exec.Command("bunx", "sv", "create", dirName,
 			"--template", "minimal",
 			"--types", typeOption,
 			"--no-add-ons",
-			"--install", "bun")
+			"--install", bun)
 	default:
 		return exec.Command("npx", "sv", "create", dirName,
 			"--template", "minimal",
@@ -146,18 +159,25 @@ func (pg *ProjectGenerator) getSvelteCommand(runtime, dirName, typeOption string
 }
 
 func (pg *ProjectGenerator) getSolidCommand(runtime, dirName, template string) *exec.Cmd {
+	// Validate template to prevent command injection
+	if template != "js" && template != "ts" {
+		template = "js" // default to safe value
+	}
+
+	templatePath := "solidjs/templates/" + template
+
 	switch runtime {
-	case "bun":
-		return exec.Command("bunx", "--yes", "degit", fmt.Sprintf("solidjs/templates/%s", template), dirName, "--force")
+	case bun:
+		return exec.Command("bunx", "--yes", "degit", templatePath, dirName, "--force")
 	default:
-		return exec.Command("npx", "--yes", "degit", fmt.Sprintf("solidjs/templates/%s", template), dirName, "--force")
+		return exec.Command("npx", "--yes", "degit", templatePath, dirName, "--force")
 	}
 }
 
 func (pg *ProjectGenerator) getInstallCommand(runtime string) *exec.Cmd {
 	switch runtime {
-	case "bun":
-		return exec.Command("bun", "install")
+	case bun:
+		return exec.Command(bun, "install")
 	default:
 		return exec.Command("npm", "install")
 	}

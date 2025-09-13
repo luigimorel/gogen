@@ -56,21 +56,25 @@ func (tc *TailwindConfig) InstallTailwindCSS() error {
 	fmt.Println("✅ Tailwind CSS configured successfully!")
 	return nil
 }
+
 func (tc *TailwindConfig) tailwindLibInstall(framework, runtime string) error {
-	if runtime == "node" {
+	if runtime == node {
 		runtime = "npm"
 	}
 
 	switch framework {
-	case "react", "vue", "svelte", "solidjs":
+	case react, vue, svelte, solidjs:
 		args := append([]string{"add"}, "tailwindcss", "@tailwindcss/vite")
 		return exec.Command(runtime, args...).Run()
 
-	case "angular":
-		if runtime == "bun" {
-			return exec.Command(runtime, "add", "tailwindcss", "@tailwindcss/postcss", "postcss", "--force").Run()
+	case angular:
+		angularArgs := []string{"tailwindcss", "@tailwindcss/postcss", "postcss", "--force"}
+		if runtime == bun {
+			args := append([]string{"add"}, angularArgs...)
+			return exec.Command(runtime, args...).Run()
 		}
-		return exec.Command("npm", "install", "tailwindcss", "@tailwindcss/postcss", "postcss", "--force").Run()
+		args := append([]string{"install"}, angularArgs...)
+		return exec.Command("npm", args...).Run()
 
 	default:
 		return fmt.Errorf("unsupported framework: %s", framework)
@@ -79,12 +83,12 @@ func (tc *TailwindConfig) tailwindLibInstall(framework, runtime string) error {
 
 func (tc *TailwindConfig) updateConfigFile(framework string) error {
 	configExt := ".js"
-	if tc.UseTypeScript && framework != "angular" {
+	if tc.UseTypeScript && framework != angular {
 		configExt = ".ts"
 	}
 
 	switch framework {
-	case "react":
+	case react:
 		viteConfig := `import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -96,8 +100,8 @@ export default defineConfig({
   ],
 })
 `
-		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0644)
-	case "vue":
+		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0600)
+	case vue:
 		viteConfig := `import { fileURLToPath, URL } from "node:url";
 
 import vue from "@vitejs/plugin-vue";
@@ -117,8 +121,8 @@ export default defineConfig({
 });
 
 `
-		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0644)
-	case "svelte":
+		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0600)
+	case svelte:
 		viteConfig := `import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
@@ -127,8 +131,8 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()]
 });
 `
-		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0644)
-	case "solidjs":
+		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0600)
+	case solidjs:
 		viteConfig := `import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 import tailwindcss from '@tailwindcss/vite';
@@ -146,10 +150,10 @@ export default defineConfig({
   },
 });
 `
-		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0644)
+		return os.WriteFile("vite.config"+configExt, []byte(viteConfig), 0600)
 	case "angular":
 		postcssConfig := `{  "plugins": {    "@tailwindcss/postcss": {}  }}`
-		return os.WriteFile(".postcssrc.json", []byte(postcssConfig), 0644)
+		return os.WriteFile(".postcssrc.json", []byte(postcssConfig), 0600)
 	}
 
 	return nil
@@ -158,15 +162,15 @@ export default defineConfig({
 func (tc *TailwindConfig) updateStylesFile(framework string) error {
 	var cssFile string
 	switch framework {
-	case "react":
+	case react:
 		cssFile = "src/index.css"
-	case "vue":
+	case vue:
 		cssFile = "src/assets/main.css"
-	case "svelte":
+	case svelte:
 		cssFile = "src/main.css"
-	case "solidjs":
+	case solidjs:
 		cssFile = "src/index.css"
-	case "angular":
+	case angular:
 		cssFile = "src/styles.css"
 	default:
 		return nil
@@ -186,5 +190,5 @@ func (tc *TailwindConfig) updateStylesFile(framework string) error {
 		newContent = []byte(tailwindImport)
 	}
 
-	return os.WriteFile(cssFile, newContent, 0644)
+	return os.WriteFile(cssFile, newContent, 0600)
 }
