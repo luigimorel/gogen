@@ -5,8 +5,15 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/luigimorel/gogen/internal"
 	"github.com/urfave/cli/v2"
+
+	"github.com/luigimorel/gogen/internal"
+)
+
+// Runtime constants
+const (
+	node = "node"
+	bun  = "bun"
 )
 
 type FrontendManager struct {
@@ -113,14 +120,14 @@ func (fm *FrontendManager) execute() error {
 
 func (fm *FrontendManager) validateSetup() error {
 	switch fm.Runtime {
-	case "node":
+	case node:
 		if !fm.commandExists("node") {
 			return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
 		}
 		if !fm.commandExists("npm") {
 			return fmt.Errorf("npm is required but not installed. Please install npm")
 		}
-	case "bun":
+	case bun:
 		if !fm.commandExists("bun") {
 			return fmt.Errorf("bun is required but not installed. Please install Bun from https://bun.sh/")
 		}
@@ -130,13 +137,13 @@ func (fm *FrontendManager) validateSetup() error {
 
 	switch fm.FrameworkType {
 	case "angular":
-		if fm.Runtime == "node" && !fm.commandExists("ng") {
+		if fm.Runtime == node && !fm.commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
 			var cmd *exec.Cmd
 			switch fm.Runtime {
-			case "node":
+			case node:
 				cmd = exec.Command("npm", "install", "-g", "@angular/cli")
-			case "bun":
+			case bun:
 				cmd = exec.Command("bun", "add", "-g", "@angular/cli")
 			}
 
@@ -167,9 +174,9 @@ func (fm *FrontendManager) printInstructions() {
 
 	var devCommand string
 	switch fm.Runtime {
-	case "node":
+	case node:
 		devCommand = "npm run dev"
-	case "bun":
+	case bun:
 		devCommand = "bun run dev"
 	default:
 		devCommand = "npm run dev"

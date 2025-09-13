@@ -5,8 +5,14 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/luigimorel/gogen/internal"
 	"github.com/urfave/cli/v2"
+
+	"github.com/luigimorel/gogen/internal"
+)
+
+// Template constants
+const (
+	TemplateWeb = "web"
 )
 
 type ProjectCreator struct {
@@ -114,7 +120,7 @@ This command will create a new directory, initialize a Go module, and create a n
 
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
-			if runtimeExplicitlySet && template != "web" {
+			if runtimeExplicitlySet && template != TemplateWeb {
 				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
 			}
 
@@ -163,7 +169,7 @@ func (pc *ProjectCreator) execute() error {
 }
 
 func (pc *ProjectCreator) validate() error {
-	if pc.FrontendFramework != "" && pc.Template != "web" {
+	if pc.FrontendFramework != "" && pc.Template != TemplateWeb {
 		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
 	}
 
@@ -201,7 +207,7 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 }
 
 func (pc *ProjectCreator) initializeGoModule() error {
-	if pc.Template != "web" {
+	if pc.Template != TemplateWeb {
 		moduleName := pc.ModuleName
 		if moduleName == "" {
 			moduleName = pc.Name
@@ -222,7 +228,7 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	switch pc.Template {
 	case "cli":
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
-	case "web":
+	case TemplateWeb:
 		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.Runtime, pc.UseTypeScript, pc.UseTailwind)
 	case "api":
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
@@ -235,7 +241,11 @@ func (pc *ProjectCreator) createEditorLLMRules() error {
 	if err := os.Chdir(".."); err != nil {
 		return fmt.Errorf("failed to change to project root directory: %w", err)
 	}
-	defer os.Chdir(pc.DirName)
+	defer func() {
+		if err := os.Chdir(pc.DirName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to change back to %s directory: %v\n", pc.DirName, err)
+		}
+	}()
 
 	llmTemplate := internal.NewLLMTemplate()
 	return llmTemplate.CreateTemplate(pc.Editor, pc.FrontendFramework, pc.Runtime, pc.Router)
@@ -245,7 +255,7 @@ func (pc *ProjectCreator) printNextSteps() {
 	fmt.Println("\nNext steps:")
 	fmt.Printf("   cd %s\n", pc.Name)
 
-	if pc.Template == "web" {
+	if pc.Template == TemplateWeb {
 		fmt.Println("   cd api")
 		fmt.Println("   go run main.go")
 		if pc.FrontendFramework != "" {
