@@ -14,6 +14,7 @@ func App() *cli.App {
 			NewCommand(),
 			InstallCommand(),
 			FrontendCommand(),
+			GenerateCommand(),
 		},
 	}
 }

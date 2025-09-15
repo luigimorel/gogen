@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -85,7 +86,7 @@ Usage:
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
-				return fmt.Errorf("framework type is required. Usage: gogen frontend <framework-type>")
+				return errors.New("framework type is required. Usage: gogen frontend <framework-type>")
 			}
 
 			frameworkType := c.Args().Get(0)
@@ -122,14 +123,14 @@ func (fm *FrontendManager) validateSetup() error {
 	switch fm.Runtime {
 	case node:
 		if !fm.commandExists("node") {
-			return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
+			return errors.New("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
 		}
 		if !fm.commandExists("npm") {
-			return fmt.Errorf("npm is required but not installed. Please install npm")
+			return errors.New("npm is required but not installed. Please install npm")
 		}
 	case bun:
 		if !fm.commandExists("bun") {
-			return fmt.Errorf("bun is required but not installed. Please install Bun from https://bun.sh/")
+			return errors.New("bun is required but not installed. Please install Bun from https://bun.sh/")
 		}
 	default:
 		return fmt.Errorf("unsupported runtime: %s. Supported runtimes: node, bun", fm.Runtime)

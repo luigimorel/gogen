@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"time"
 
+	"github.com/luigimorel/gogen/internal/stdlibtemplate"
 	"github.com/urfave/cli/v2"
 )
 
@@ -13,7 +18,7 @@ const (
 	RouterStdlib     = "stdlib"
 	RouterChi        = "chi"
 	RouterGorilla    = "gorilla"
-	RouterHttpRouter = "httprouter"
+	RouterHTTPRouter = "httprouter"
 )
 
 type Router struct {
@@ -57,7 +62,7 @@ Usage:
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
-				return fmt.Errorf("router type is required. Usage: gogen router <router-type>")
+				return errors.New("router type is required. Usage: gogen router <router-type>")
 			}
 
 			routerType := c.Args().Get(0)
@@ -70,9 +75,10 @@ Usage:
 }
 
 func (r *Router) execute() error {
-	if err := r.validateProject(); err != nil {
-		return err
-	}
+	// A main.go is not required for a valid project, ex packages, creeate it in updatemainFile()
+	// if err := r.validateProject(); err != nil {
+	// 	return err
+	// }
 
 	if err := r.installDependency(); err != nil {
 		return fmt.Errorf("failed to install router dependency: %w", err)
@@ -89,13 +95,6 @@ func (r *Router) execute() error {
 	return nil
 }
 
-func (r *Router) validateProject() error {
-	if _, err := os.Stat("go.mod"); err != nil {
-		return fmt.Errorf("no go.mod found - please run this command in a Go project directory")
-	}
-	return nil
-}
-
 func (r *Router) installDependency() error {
 	var dependency string
 
@@ -107,7 +106,7 @@ func (r *Router) installDependency() error {
 		dependency = "github.com/go-chi/chi/v5"
 	case RouterGorilla:
 		dependency = "github.com/gorilla/mux"
-	case RouterHttpRouter:
+	case RouterHTTPRouter:
 		dependency = "github.com/julienschmidt/httprouter"
 	default:
 		return fmt.Errorf("unsupported router type: %s", r.Type)
@@ -127,18 +126,68 @@ func (r *Router) installDependency() error {
 }
 
 func (r *Router) updateMainFile() error {
-	mainContent, err := os.ReadFile("main.go")
+	var mainFile *os.File
+	var err error
+
+	mainFile, err = os.Open("main.go")
+	switch {
+	case os.IsNotExist(err):
+		_, err := os.Create("main.go")
+		if err != nil {
+			return fmt.Errorf("failed to create main.go: %w", err)
+		}
+	case err != nil:
+		return fmt.Errorf("failed to check if main.go exists: %w", err)
+	default:
+
+		var backupFileName = "main.go.backup"
+		_, err := os.Stat(backupFileName)
+		switch {
+		case os.IsNotExist(err):
+			// keep the name
+		case err != nil:
+			return fmt.Errorf("failed to check if backup file exists: %w", err)
+		default:
+			// If stat does not return a error, the file exist, hence create a timestamped backup file
+			backupFileName = "main.go.backup" + time.Now().Format("20060102150405")
+
+		}
+
+		backupFile, err := os.Create(backupFileName)
+		switch {
+		case err != nil:
+			return fmt.Errorf("failed to create backup file: %w", err)
+		default:
+			defer backupFile.Close()
+			_, err = io.Copy(backupFile, mainFile)
+			if err != nil {
+				return fmt.Errorf("failed to copy main.go to backup file: %w", err)
+			}
+		}
+	}
+
+	defer mainFile.Close()
+
+	mainContent := &bytes.Buffer{}
+
+	_, err = io.Copy(mainContent, mainFile)
 	if err != nil {
 		return fmt.Errorf("failed to read main.go: %w", err)
 	}
 
-	newContent := r.generateMainContent(string(mainContent))
-
-	backupPath := "main.go.backup"
-	if err := os.WriteFile(backupPath, mainContent, 0600); err != nil {
-		fmt.Printf("Warning: failed to create backup at %s: %v\n", backupPath, err)
+	_, err = mainContent.WriteString(r.generateMainContent(mainContent.String()))
+	if err != nil {
+		return fmt.Errorf("failed to write updated main.go: %w", err)
 	}
-	if err := os.WriteFile("main.go", []byte(newContent), 0600); err != nil {
+
+	_ = mainFile.Truncate(0)
+
+	_, err = mainFile.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to seek to beginning of main.go: %w", err)
+	}
+	_, err = io.Copy(mainFile, mainContent)
+	if err != nil {
 		return fmt.Errorf("failed to write updated main.go: %w", err)
 	}
 
@@ -148,13 +197,20 @@ func (r *Router) updateMainFile() error {
 func (r *Router) generateMainContent(existingContent string) string {
 	switch r.Type {
 	case RouterStdlib:
+		// ugly addition as the command currently only support updating a main.go file
+		err := stdlibtemplate.CreateRouterSetup()
+		if err != nil {
+			fmt.Printf("Warning: failed to create router setup: %v", err)
+			return "" // not ideal
+		}
+
 		return r.generateServeMuxContent()
 	case RouterChi:
 		return r.generateChiContent()
 	case RouterGorilla:
 		return r.generateGorillaContent()
-	case RouterHttpRouter:
-		return r.generateHttpRouterContent()
+	case RouterHTTPRouter:
+		return r.generateHTTPRouterContent()
 	default:
 		return existingContent
 	}
@@ -177,7 +233,7 @@ func (r *Router) printInstructions() {
 		fmt.Println("   - Path variables: r.HandleFunc(\"/users/{id}\", handler)")
 		fmt.Println("   - Query parameter matching")
 		fmt.Println("   - Host and scheme matching")
-	case RouterHttpRouter:
+	case RouterHTTPRouter:
 		fmt.Println("\nHttpRouter features:")
 		fmt.Println("   - Extremely fast performance")
 		fmt.Println("   - Path parameters: router.GET(\"/users/:id\", handler)")
@@ -194,42 +250,22 @@ func (r *Router) generateServeMuxContent() string {
 	return `package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	"<your-module-name>/router"
 )
 
-type Response struct {
-	Message string ` + "`json:\"message\"`" + `
-	Router  string ` + "`json:\"router\"`" + `
-}
-
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		response := Response{
-			Message: "Hello from http.ServeMux",
-			Router:  "http.ServeMux",
-		}
-		json.NewEncoder(w).Encode(response)
+	// Example of adding a handler to the router
+	router.Router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Hello from the stdlib router!")
 	})
 
-	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		response := Response{
-			Message: "API is healthy",
-			Router:  "http.ServeMux",
-		}
-		json.NewEncoder(w).Encode(response)
-	})
-
-	port := ":8080"
-	fmt.Printf("Starting API server with http.ServeMux on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, mux))
+	addr := ":8080"
+	fmt.Printf("Starting server on http://localhost%s\n", addr)
+	log.Fatal(router.Serve(addr))
 }
 `
 }
@@ -337,7 +373,7 @@ func main() {
 `
 }
 
-func (r *Router) generateHttpRouterContent() string {
+func (r *Router) generateHTTPRouterContent() string {
 	return `package main
 
 import (

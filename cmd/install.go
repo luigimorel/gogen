@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -133,7 +134,7 @@ func (i *Installer) binaryInstall() error {
 
 func (i *Installer) nixInstall() error {
 	if !i.commandExists("nix-env") && !i.commandExists("nix") {
-		return fmt.Errorf("nix is not installed on this system")
+		return errors.New("nix is not installed on this system")
 	}
 
 	fmt.Println("Nix package not available yet, using binary installation...")
@@ -142,7 +143,7 @@ func (i *Installer) nixInstall() error {
 
 func (i *Installer) brewInstall() error {
 	if !i.commandExists("brew") {
-		return fmt.Errorf("homebrew is not installed on this system")
+		return errors.New("homebrew is not installed on this system")
 	}
 
 	fmt.Println("Homebrew formula not available yet, using binary installation...")

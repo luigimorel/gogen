@@ -1,13 +1,14 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-
-	"github.com/urfave/cli/v2"
+	"path/filepath"
 
 	"github.com/luigimorel/gogen/internal"
+	"github.com/luigimorel/gogen/internal/constants"
+	"github.com/urfave/cli/v2"
 )
 
 // Template constants
@@ -121,7 +122,7 @@ This command will create a new directory, initialize a Go module, and create a n
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
 			if runtimeExplicitlySet && template != TemplateWeb {
-				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
+				return errors.New("runtime flag is only applicable when template is 'web'")
 			}
 
 			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind)
@@ -170,15 +171,15 @@ func (pc *ProjectCreator) execute() error {
 
 func (pc *ProjectCreator) validate() error {
 	if pc.FrontendFramework != "" && pc.Template != TemplateWeb {
-		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
+		return errors.New("frontend flag is only applicable when template is 'web'")
 	}
 
 	if pc.UseTypeScript && pc.FrontendFramework == "" {
-		return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
+		return errors.New("TypeScript flag is only applicable when frontend is specified")
 	}
 
 	if pc.UseTailwind && pc.FrontendFramework == "" {
-		return fmt.Errorf("tailwind flag is only applicable when frontend is specified")
+		return errors.New("tailwind flag is only applicable when frontend is specified")
 	}
 
 	return nil
@@ -208,16 +209,29 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 
 func (pc *ProjectCreator) initializeGoModule() error {
 	if pc.Template != TemplateWeb {
-		moduleName := pc.ModuleName
-		if moduleName == "" {
+		var moduleName string
+		switch {
+		case pc.ModuleName != "":
+			moduleName = pc.ModuleName
+		case pc.Name != "":
 			moduleName = pc.Name
+		default:
+			moduleName = "my-go-module"
 		}
-		cmd := exec.Command("go", "mod", "init", moduleName)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to initialize go module: %w", err)
+
+		f, err := os.Create(filepath.Join(pc.DirName, "go.mod"))
+		switch {
+		case os.IsExist(err):
+			return errors.New("a go.mod file already exists in the project directory")
+		case err != nil:
+			return fmt.Errorf("failed to create go.mod file: %w", err)
 		}
+		defer f.Close()
+		_, err = f.WriteString("module " + moduleName + "\n\ngo " + constants.LatestGoVersion)
+		if err != nil {
+			return fmt.Errorf("failed to write to go.mod file: %w", err)
+		}
+
 	}
 	return nil
 }
