@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ const (
 	RouterStdlib     = "stdlib"
 	RouterChi        = "chi"
 	RouterGorilla    = "gorilla"
-	RouterHttpRouter = "httprouter"
+	RouterHTTPRouter = "httprouter"
 )
 
 type Router struct {
@@ -61,7 +62,7 @@ Usage:
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
-				return fmt.Errorf("router type is required. Usage: gogen router <router-type>")
+				return errors.New("router type is required. Usage: gogen router <router-type>")
 			}
 
 			routerType := c.Args().Get(0)
@@ -94,13 +95,6 @@ func (r *Router) execute() error {
 	return nil
 }
 
-func (r *Router) validateProject() error {
-	if _, err := os.Stat("go.mod"); err != nil {
-		return fmt.Errorf("no go.mod found - please run this command in a Go project directory")
-	}
-	return nil
-}
-
 func (r *Router) installDependency() error {
 	var dependency string
 
@@ -112,7 +106,7 @@ func (r *Router) installDependency() error {
 		dependency = "github.com/go-chi/chi/v5"
 	case RouterGorilla:
 		dependency = "github.com/gorilla/mux"
-	case RouterHttpRouter:
+	case RouterHTTPRouter:
 		dependency = "github.com/julienschmidt/httprouter"
 	default:
 		return fmt.Errorf("unsupported router type: %s", r.Type)
@@ -145,13 +139,22 @@ func (r *Router) updateMainFile() error {
 	case err != nil:
 		return fmt.Errorf("failed to check if main.go exists: %w", err)
 	default:
-		backupFile, err := os.Create("main.go.backup")
+
+		var backupFileName = "main.go.backup"
+		_, err := os.Stat(backupFileName)
 		switch {
-		case os.IsExist(err):
-			backupFile, err = os.Create("main.go.backup" + time.Now().Format("20060102150405"))
-			if err != nil {
-				return fmt.Errorf("failed to create backup file: %w", err)
-			}
+		case os.IsNotExist(err):
+			// keep the name
+		case err != nil:
+			return fmt.Errorf("failed to check if backup file exists: %w", err)
+		default:
+			// If stat does not return a error, the file exist, hence create a timestamped backup file
+			backupFileName = "main.go.backup" + time.Now().Format("20060102150405")
+
+		}
+
+		backupFile, err := os.Create(backupFileName)
+		switch {
 		case err != nil:
 			return fmt.Errorf("failed to create backup file: %w", err)
 		default:
@@ -173,8 +176,12 @@ func (r *Router) updateMainFile() error {
 	}
 
 	_, err = mainContent.WriteString(r.generateMainContent(mainContent.String()))
+	if err != nil {
+		return fmt.Errorf("failed to write updated main.go: %w", err)
+	}
 
-	mainFile.Truncate(0)
+	_ = mainFile.Truncate(0)
+
 	_, err = mainFile.Seek(0, 0)
 	if err != nil {
 		return fmt.Errorf("failed to seek to beginning of main.go: %w", err)
@@ -202,8 +209,8 @@ func (r *Router) generateMainContent(existingContent string) string {
 		return r.generateChiContent()
 	case RouterGorilla:
 		return r.generateGorillaContent()
-	case RouterHttpRouter:
-		return r.generateHttpRouterContent()
+	case RouterHTTPRouter:
+		return r.generateHTTPRouterContent()
 	default:
 		return existingContent
 	}
@@ -226,7 +233,7 @@ func (r *Router) printInstructions() {
 		fmt.Println("   - Path variables: r.HandleFunc(\"/users/{id}\", handler)")
 		fmt.Println("   - Query parameter matching")
 		fmt.Println("   - Host and scheme matching")
-	case RouterHttpRouter:
+	case RouterHTTPRouter:
 		fmt.Println("\nHttpRouter features:")
 		fmt.Println("   - Extremely fast performance")
 		fmt.Println("   - Path parameters: router.GET(\"/users/:id\", handler)")
@@ -366,7 +373,7 @@ func main() {
 `
 }
 
-func (r *Router) generateHttpRouterContent() string {
+func (r *Router) generateHTTPRouterContent() string {
 	return `package main
 
 import (

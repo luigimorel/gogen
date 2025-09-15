@@ -1,52 +1,25 @@
+version: "2"
 run:
-  timeout: 5m
+  modules-download-mode: readonly
   issues-exit-code: 1
   tests: true
-  modules-download-mode: readonly
-
 output:
   formats:
-    - format: colored-line-number
-
-linters-settings:
-  depguard:
-    rules:
-      main:
-        files:
-          - $all
-        allow:
-          - $gostd
-          - github.com/luigimorel/gogen
-          - github.com/urfave/cli/v2
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/luigimorel/gogen
-  misspell:
-    locale: US
-
+    text:
+      path: stdout
 linters:
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
-    - misspell
-    - goconst
-    - gosec
-    - unconvert
-    - dupl
-    - gocritic
-    - gocyclo
-    - whitespace
     - bodyclose
     - depguard
     - dogsled
-
+    - dupl
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - misspell
+    - unconvert
+    - whitespace
   disable:
     - funlen
     - gochecknoglobals
@@ -54,15 +27,53 @@ linters:
     - godot
     - godox
     - nestif
-
+  settings:
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/luigimorel/gogen
+            - github.com/urfave/cli/v2
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - gosec
+        path: _test\.go
+      - linters:
+          - lll
+        source: '^//go:generate '
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - dupl
-    - linters:
-        - lll
-      source: "^//go:generate "
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/luigimorel/gogen
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

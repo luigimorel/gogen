@@ -1,0 +1,274 @@
+{
+    "formatters": {
+        "exclusions": {
+            "generated": "lax",
+            "paths": [
+                "third_party$",
+                "builtin$",
+                "examples$",
+                "_test\\.go$"
+            ]
+        }
+    },
+    "run": {
+        "allow-parallel-runners": true,
+        "concurrency": 4,
+        "go": "1.24.1"
+    },
+    "version": "2",
+    "linters": {
+        "enable": [
+            "bodyclose",
+            "errname",
+            "forcetypeassert",
+            "gochecknoinits",
+            "goconst",
+            "gocritic",
+            "gosec",
+            "iface",
+            "intrange",
+            "ireturn",
+            "makezero",
+            "mirror",
+            "misspell",
+            "mnd",
+            "nilnesserr",
+            "nilnil",
+            "nonamedreturns",
+            "nosprintfhostport",
+            "perfsprint",
+            "prealloc",
+            "predeclared",
+            "revive",
+            "testpackage",
+            "unconvert",
+            "wastedassign",
+            "wrapcheck"
+        ],
+        "exclusions": {
+            "generated": "lax",
+            "paths": [
+                "third_party$",
+                "builtin$",
+                "examples$",
+                "_test\\.go$"
+            ],
+            "presets": [
+                "comments",
+                "common-false-positives",
+                "legacy",
+                "std-error-handling"
+            ],
+            "rules": [
+                {
+                    "linters": [
+                        "errcheck",
+                        "gosec"
+                    ],
+                    "path": "_test\\.go"
+                },
+                {
+                    "path": "(.+)\\.go$",
+                    "text": "G114"
+                },
+                {
+                    "path": "(.+)\\.go$",
+                    "text": "should omit type .* from declaration of var"
+                },
+                {
+                    "linters": [ "wrapcheck" ],
+                    "source": "NewResult|NewResultWithError|NewDirectResult"
+                }
+            ]
+        },
+        "settings": {
+            "errcheck": {
+                "exclude-functions": [
+                    "(github.com/gin-gonic/gin.ResponseWriter).Write",
+                    "(net/http.ResponseWriter).Write",
+                    "jsonres.Serve.*"
+                ]
+            },
+            "gocritic": {
+                "enabled-checks": [
+                    "nilValReturn",
+                    "returnAfterHttpError",
+                    "sliceClear",
+                    "unnecessaryDefer"
+                ]
+            },
+            "mnd": {
+                "checks": [
+                    "argument",
+                    "case",
+                    "condition",
+                    "operation",
+                    "return",
+                    "assign"
+                ],
+                "ignored-functions": [
+                    "^math\\.",
+                    "^os\\.Open\\w*$",
+                    "^os\\.Mkdir\\w*$",
+                    "^os\\.Chmod\\w*$",
+                    "^os\\.Create\\w*$",
+                    "^syscall\\.Chmod\\w*$",
+                    "^syscall\\.Mkdir\\w*$",
+                    "^time\\.Sleep$",
+                    "^time\\.Duration$",
+                    "^jsonres\\.",
+                    "^http\\.ServeFile$",
+                    "^http\\.ServeContent$",
+                    "^http\\.Redirect$",
+                    "^make$",
+                    "^cap$",
+                    "^len$",
+                    "^copy$",
+                    "^append$",
+                    "^strings\\.Replace\\w*$",
+                    "^strings\\.Count\\w*$",
+                    "^strings\\.Index\\w*$",
+                    "^strings\\.LastIndex\\w*$",
+                    "^bytes\\.Replace\\w*$",
+                    "^bytes\\.Count\\w*$",
+                    "^bytes\\.Index\\w*$",
+                    "^bytes\\.LastIndex\\w*$",
+                    "^unicode/utf8\\.\\w*$",
+                    "^utf8\\.\\w*$",
+                    "^strconv\\.Format\\w*$",
+                    "^strconv\\.Parse\\w*$",
+                    "^strconv\\.Append\\w*$",
+                    "^strconv\\.Atoi$",
+                    "^strconv\\.Itoa$",
+                    "^encoding/binary\\.\\w*$",
+                    "^crypto/\\w*$",
+                    "^sort\\.\\w*$",
+                    "^regexp\\.\\w*$",
+                    "^net\\.\\w*$",
+                    "^bufio\\.\\w*$",
+                    "^io\\.\\w*$",
+                    "^fmt\\.\\w*$",
+                    "^encoding/json\\.\\w*$",
+                    "^encoding/base64\\.\\w*$",
+                    "^rand\\.Int\\w*$",
+                    "^rand\\.Float\\w*$",
+                    "^reflect\\.\\w*$",
+                    "^runtime\\.\\w*$",
+                    "^net/http\\.\\w*$",
+                    "^net/url\\.\\w*$",
+                    "^context\\.\\w*$",
+                    "^sync\\.\\w*$",
+                    "^database/sql\\.\\w*$"
+                ],
+                "ignored-numbers": [
+                    "0",
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                    "10",
+                    "16",
+                    "32",
+                    "64",
+                    "128",
+                    "255",
+                    "256",
+                    "512",
+                    "1024",
+                    "2048",
+                    "4096",
+                    "8192",
+                    "16384",
+                    "32768",
+                    "65536",
+                    "24",
+                    "60",
+                    "12",
+                    "365",
+                    "366",
+                    "31",
+                    "30",
+                    "28",
+                    "29",
+                    "7",
+                    "86400",
+                    "3600",
+                    "1800",
+                    "1440",
+                    "900",
+                    "300",
+                    "1000",
+                    "100",
+                    "1000",
+                    "1000000",
+                    "127",
+                    "255",
+                    "32767",
+                    "65535",
+                    "2147483647",
+                    "4294967295",
+                    "9223372036854775807",
+                    "18446744073709551615",
+                    "-128",
+                    "-32768",
+                    "-2147483648",
+                    "-9223372036854775808",
+                    "200",
+                    "201",
+                    "204",
+                    "400",
+                    "401",
+                    "403",
+                    "404",
+                    "500",
+                    "503",
+                    "0644",
+                    "0666",
+                    "0755",
+                    "0777",
+                    "0600",
+                    "0400",
+                    "1e3",
+                    "1e6",
+                    "1e9"
+                ]
+            },
+            "perfsprint": {
+                "bool-format": true,
+                "err-error": true,
+                "error-format": true,
+                "errorf": true,
+                "hex-format": true,
+                "int-conversion": true,
+                "integer-format": true,
+                "sprintf1": true,
+                "strconcat": true,
+                "string-format": true
+            },
+            "revive": {
+                "rules": [
+                    {
+                        "arguments": [
+                            [
+                                "JSON",
+                                "ID",
+                                "URL",
+                                "API",
+                                "UUID",
+                                "UI",
+                                "UID"
+                            ]
+                        ],
+                        "disabled": false,
+                        "name": "var-naming"
+                    }
+                ]
+            }
+        }
+    }
+}

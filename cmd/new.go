@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/luigimorel/gogen/internal"
 	"github.com/luigimorel/gogen/internal/constants"
 	"github.com/urfave/cli/v2"
-	"github.com/luigimorel/gogen/internal"
 )
 
 // Template constants
@@ -122,7 +122,7 @@ This command will create a new directory, initialize a Go module, and create a n
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
 			if runtimeExplicitlySet && template != TemplateWeb {
-				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
+				return errors.New("runtime flag is only applicable when template is 'web'")
 			}
 
 			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind)
@@ -171,15 +171,15 @@ func (pc *ProjectCreator) execute() error {
 
 func (pc *ProjectCreator) validate() error {
 	if pc.FrontendFramework != "" && pc.Template != TemplateWeb {
-		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
+		return errors.New("frontend flag is only applicable when template is 'web'")
 	}
 
 	if pc.UseTypeScript && pc.FrontendFramework == "" {
-		return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
+		return errors.New("TypeScript flag is only applicable when frontend is specified")
 	}
 
 	if pc.UseTailwind && pc.FrontendFramework == "" {
-		return fmt.Errorf("tailwind flag is only applicable when frontend is specified")
+		return errors.New("tailwind flag is only applicable when frontend is specified")
 	}
 
 	return nil
@@ -208,7 +208,7 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 }
 
 func (pc *ProjectCreator) initializeGoModule() error {
-if pc.Template != TemplateWeb {
+	if pc.Template != TemplateWeb {
 		var moduleName string
 		switch {
 		case pc.ModuleName != "":
