@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,10 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v2"
+)
+
+const (
+	PlatformWindows = "windows"
 )
 
 type Installer struct {
@@ -86,7 +91,7 @@ func (i *Installer) autoInstall() error {
 			return i.nixInstall()
 		}
 		return i.binaryInstall()
-	case "windows":
+	case PlatformWindows:
 		return i.binaryInstall()
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
@@ -114,7 +119,7 @@ func (i *Installer) binaryInstall() error {
 		return fmt.Errorf("failed to download binary: %w", err)
 	}
 
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != PlatformWindows {
 		if err := os.Chmod(binPath, 0755); err != nil {
 			return fmt.Errorf("failed to make binary executable: %w", err)
 		}
@@ -156,7 +161,7 @@ func (i *Installer) fileExists(path string) bool {
 
 func (i *Installer) getBinaryInstallDir() string {
 	switch runtime.GOOS {
-	case "windows":
+	case PlatformWindows:
 		// Use %USERPROFILE%\AppData\Local\gogen
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, "AppData", "Local", "gogen")
@@ -168,7 +173,7 @@ func (i *Installer) getBinaryInstallDir() string {
 }
 
 func (i *Installer) getBinaryName() string {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == PlatformWindows {
 		return "gogen.exe"
 	}
 	return "gogen"
@@ -184,15 +189,24 @@ func (i *Installer) getDownloadURL() string {
 
 	version := "latest"
 	filename := fmt.Sprintf("gogen_%s_%s", os, arch)
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == PlatformWindows {
 		filename += ".exe"
 	}
 
 	return fmt.Sprintf("https://github.com/luigimorel/gogen/releases/%s/download/%s", version, filename)
 }
 
-func (i *Installer) downloadFile(url, filepath string) error {
-	resp, err := http.Get(url)
+func (i *Installer) downloadFile(downloadURL, filepath string) error {
+	u, err := url.Parse(downloadURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+
+	if !strings.HasPrefix(u.String(), "https://github.com/luigimorel/gogen/releases/") {
+		return fmt.Errorf("invalid download URL: %s", u.String())
+	}
+
+	resp, err := http.Get(u.String())
 	if err != nil {
 		return err
 	}
@@ -214,7 +228,7 @@ func (i *Installer) downloadFile(url, filepath string) error {
 
 func (i *Installer) printPathInstructions(binDir string) {
 	switch runtime.GOOS {
-	case "windows":
+	case PlatformWindows:
 		fmt.Println("\nTo add gogen to your PATH:")
 		fmt.Println("1. Press Win + R, type 'sysdm.cpl', and press Enter")
 		fmt.Println("2. Click 'Environment Variables'")
@@ -224,13 +238,14 @@ func (i *Installer) printPathInstructions(binDir string) {
 		fmt.Println("6. Restart your terminal and run 'gogen --help'")
 	default:
 		shell := os.Getenv("SHELL")
-		if strings.Contains(shell, "fish") {
+		switch {
+		case strings.Contains(shell, "fish"):
 			fmt.Printf("\nTo add gogen to your PATH, run:\n")
 			fmt.Printf("fish_add_path %s\n", binDir)
-		} else if strings.Contains(shell, "zsh") {
+		case strings.Contains(shell, "zsh"):
 			fmt.Printf("\nTo add gogen to your PATH, add this to your ~/.zshrc:\n")
 			fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
-		} else {
+		default:
 			fmt.Printf("\nTo add gogen to your PATH, add this to your ~/.bashrc or ~/.profile:\n")
 			fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
 		}

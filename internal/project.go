@@ -113,7 +113,7 @@ func main() {
 }
 `, projectName)
 
-	if err := os.WriteFile("main.go", []byte(mainContent), 0644); err != nil {
+	if err := os.WriteFile("main.go", []byte(mainContent), 0600); err != nil {
 		return err
 	}
 
@@ -125,7 +125,7 @@ func main() {
 	return cmd.Run()
 }
 
-func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework string, useTypeScript bool, runtime string) error {
+func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework, runtime string, useTypeScript bool, useTailwind bool) error {
 	if err := pg.createAPIProjectInDir("api", projectName, moduleName, router); err != nil {
 		return fmt.Errorf("failed to create API project: %w", err)
 	}
@@ -136,7 +136,9 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 	}
 
 	if err := pg.createConfigFiles(); err != nil {
-		os.Chdir(originalDir)
+		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+			return fmt.Errorf("failed to create config files and to change back to original directory: %w, %w", err, chdirErr)
+		}
 		return fmt.Errorf("failed to create config files: %w", err)
 	}
 
@@ -144,7 +146,7 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 		return fmt.Errorf("failed to change back to original directory: %w", err)
 	}
 
-	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime); err != nil {
+	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime, useTailwind); err != nil {
 		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
@@ -156,10 +158,12 @@ func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, fr
 		fmt.Printf("Warning: failed to create env file: %v\n", err)
 	}
 
+	if err := pg.CreateEnvConfig(".", frontendFramework, useTypeScript); err != nil {
+		fmt.Printf("Warning: failed to create env config file: %v\n", err)
+	}
+
 	if err := pg.RemoveGitRepository("."); err != nil {
 		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
-	} else {
-		fmt.Println("Removed git repository from frontend")
 	}
 
 	return nil
@@ -206,7 +210,7 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		mainContent = pg.generateMainContent(moduleName, projectName, "httprouter")
 		routesContent = pg.RouterGenerator.generateHttpRouterContent()
 
-	default: // stdlib
+	default:
 		mainContent = pg.generateMainContent(moduleName, projectName, "stdlib")
 		routesContent = pg.RouterGenerator.generateStdlibContent()
 	}
@@ -221,17 +225,17 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		goModPath = "go.mod"
 	}
 
-	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0644); err != nil {
+	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0600); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(routesPath, []byte(routesContent), 0644); err != nil {
+	if err := os.WriteFile(routesPath, []byte(routesContent), 0600); err != nil {
 		return err
 	}
 
 	baseModuleName := pg.setModuleName(moduleName, projectName)
 	apiModContent := fmt.Sprintf("module %s\n\ngo 1.21\n", baseModuleName)
-	if err := os.WriteFile(goModPath, []byte(apiModContent), 0644); err != nil {
+	if err := os.WriteFile(goModPath, []byte(apiModContent), 0600); err != nil {
 		return err
 	}
 
@@ -253,7 +257,9 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 	cmd := exec.Command("go", "mod", "tidy")
 	if err := cmd.Run(); err != nil {
 		if baseDir != "." {
-			os.Chdir(originalDir)
+			if chdirErr := os.Chdir(originalDir); chdirErr != nil {
+				return fmt.Errorf("failed to tidy go.mod and to change back to original directory: %w, %w", err, chdirErr)
+			}
 		}
 		return fmt.Errorf("failed to tidy go.mod: %w", err)
 	}

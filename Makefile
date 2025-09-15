@@ -38,7 +38,7 @@ test-coverage:
 	go test -cover ./...
 
 fmt:
-	go fmt ./...
+	go fmt ./... && goimports -w . && gofmt -s -w .
 
 lint:
 	golangci-lint run

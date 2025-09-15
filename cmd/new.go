@@ -6,9 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/luigimorel/gogen/internal"
 	"github.com/luigimorel/gogen/internal/constants"
 	"github.com/urfave/cli/v2"
+	"github.com/luigimorel/gogen/internal"
+)
+
+// Template constants
+const (
+	TemplateWeb = "web"
 )
 
 type ProjectCreator struct {
@@ -20,9 +25,11 @@ type ProjectCreator struct {
 	DirName           string
 	UseTypeScript     bool
 	Runtime           string
+	UseTailwind       bool
+	Editor            string
 }
 
-func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir string, useTypeScript bool, runtime string) *ProjectCreator {
+func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir, runtime, editor string, useTypeScript, useTailwind bool) *ProjectCreator {
 	if projectDir == "" {
 		projectDir = name
 	}
@@ -36,6 +43,8 @@ func NewProjectCreator(name, moduleName, template, router, frontendFramework, pr
 		FrontendFramework: frontendFramework,
 		UseTypeScript:     useTypeScript,
 		Runtime:           runtime,
+		UseTailwind:       useTailwind,
+		Editor:            editor,
 	}
 }
 
@@ -80,13 +89,22 @@ This command will create a new directory, initialize a Go module, and create a n
 			},
 			&cli.StringFlag{
 				Name:  "runtime",
-				Usage: "JavaScript runtime to use (node, deno, bun)",
+				Usage: "JavaScript runtime to use (node, bun)",
 				Value: "node",
 			},
 			&cli.BoolFlag{
 				Name:  "ts",
 				Usage: "Use TypeScript for frontend projects (only applicable with --frontend)",
 				Value: false,
+			},
+			&cli.BoolFlag{
+				Name:  "tailwind",
+				Usage: "Add Tailwind CSS to frontend projects (only applicable with --frontend)",
+				Value: false,
+			},
+			&cli.StringFlag{
+				Name:  "editor",
+				Usage: "Add an LLM template for the specified editor (cursor, vscode, jetbrains)",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -98,14 +116,16 @@ This command will create a new directory, initialize a Go module, and create a n
 			projectDir := c.String("dir")
 			useTypeScript := c.Bool("ts")
 			runtime := c.String("runtime")
+			useTailwind := c.Bool("tailwind")
+			editor := c.String("editor")
 
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
-			if runtimeExplicitlySet && template != "web" {
+			if runtimeExplicitlySet && template != TemplateWeb {
 				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
 			}
 
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, useTypeScript, runtime)
+			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind)
 			return creator.execute()
 		},
 	}
@@ -136,18 +156,30 @@ func (pc *ProjectCreator) execute() error {
 		return fmt.Errorf("failed to create project files: %w", err)
 	}
 
+	if pc.Editor != "" {
+		if err := pc.createEditorLLMRules(); err != nil {
+			fmt.Printf("Warning: failed to create LLM rules for %s: %v\n", pc.Editor, err)
+		} else {
+			fmt.Printf("Created LLM rules for %s\n", pc.Editor)
+		}
+	}
+
 	pc.printNextSteps()
 
 	return nil
 }
 
 func (pc *ProjectCreator) validate() error {
-	if pc.FrontendFramework != "" && pc.Template != "web" {
+	if pc.FrontendFramework != "" && pc.Template != TemplateWeb {
 		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
 	}
 
 	if pc.UseTypeScript && pc.FrontendFramework == "" {
 		return fmt.Errorf("TypeScript flag is only applicable when frontend is specified")
+	}
+
+	if pc.UseTailwind && pc.FrontendFramework == "" {
+		return fmt.Errorf("tailwind flag is only applicable when frontend is specified")
 	}
 
 	return nil
@@ -176,7 +208,7 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 }
 
 func (pc *ProjectCreator) initializeGoModule() error {
-	if pc.Template != "web" {
+if pc.Template != TemplateWeb {
 		var moduleName string
 		switch {
 		case pc.ModuleName != "":
@@ -185,7 +217,6 @@ func (pc *ProjectCreator) initializeGoModule() error {
 			moduleName = pc.Name
 		default:
 			moduleName = "my-go-module"
-
 		}
 
 		f, err := os.Create(filepath.Join(pc.DirName, "go.mod"))
@@ -211,8 +242,8 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	switch pc.Template {
 	case "cli":
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
-	case "web":
-		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.UseTypeScript, pc.Runtime)
+	case TemplateWeb:
+		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.Runtime, pc.UseTypeScript, pc.UseTailwind)
 	case "api":
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
 	default:
@@ -220,11 +251,25 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	}
 }
 
+func (pc *ProjectCreator) createEditorLLMRules() error {
+	if err := os.Chdir(".."); err != nil {
+		return fmt.Errorf("failed to change to project root directory: %w", err)
+	}
+	defer func() {
+		if err := os.Chdir(pc.DirName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to change back to %s directory: %v\n", pc.DirName, err)
+		}
+	}()
+
+	llmTemplate := internal.NewLLMTemplate()
+	return llmTemplate.CreateTemplate(pc.Editor, pc.FrontendFramework, pc.Runtime, pc.Router)
+}
+
 func (pc *ProjectCreator) printNextSteps() {
 	fmt.Println("\nNext steps:")
 	fmt.Printf("   cd %s\n", pc.Name)
 
-	if pc.Template == "web" {
+	if pc.Template == TemplateWeb {
 		fmt.Println("   cd api")
 		fmt.Println("   go run main.go")
 		if pc.FrontendFramework != "" {

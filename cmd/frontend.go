@@ -5,8 +5,15 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/luigimorel/gogen/internal"
 	"github.com/urfave/cli/v2"
+
+	"github.com/luigimorel/gogen/internal"
+)
+
+// Runtime constants
+const (
+	node = "node"
+	bun  = "bun"
 )
 
 type FrontendManager struct {
@@ -14,14 +21,16 @@ type FrontendManager struct {
 	DirName       string
 	UseTypeScript bool
 	Runtime       string
+	UseTailwind   bool
 }
 
-func NewFrontendManager(frameworkType, dirName, runtime string, useTypeScript bool) *FrontendManager {
+func NewFrontendManager(frameworkType, dirName, runtime string, useTypeScript bool, useTailwind bool) *FrontendManager {
 	return &FrontendManager{
 		FrameworkType: frameworkType,
 		DirName:       dirName,
 		UseTypeScript: useTypeScript,
 		Runtime:       runtime,
+		UseTailwind:   useTailwind,
 	}
 }
 
@@ -43,13 +52,11 @@ Supported frameworks:
 Supported runtimes:
 - node: Node.js (default)
 - bun: Bun
-- deno: Deno
 
 Usage:
   gogen frontend react
   gogen frontend vue --typescript
-  gogen frontend svelte --dir client --runtime bun
-  gogen frontend react --runtime deno`,
+  gogen frontend svelte --dir client --runtime bun`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "dir",
@@ -66,8 +73,14 @@ Usage:
 			&cli.StringFlag{
 				Name:    "runtime",
 				Aliases: []string{"r"},
-				Usage:   "JavaScript runtime to use (node, deno, bun)",
+				Usage:   "JavaScript runtime to use (node, bun)",
 				Value:   "node",
+			},
+			&cli.BoolFlag{
+				Name:    "tailwind",
+				Aliases: []string{"tw"},
+				Usage:   "Add Tailwind CSS to the project",
+				Value:   false,
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -79,10 +92,11 @@ Usage:
 			dirName := c.String("dir")
 			useTypeScript := c.Bool("typescript")
 			runtime := c.String("runtime")
+			useTailwind := c.Bool("tailwind")
 
-			fmt.Printf("DEBUG CLI: framework=%s, dir=%s, typescript=%v, runtime=%s\n", frameworkType, dirName, useTypeScript, runtime)
+			fmt.Printf("DEBUG CLI: framework=%s, dir=%s, typescript=%v, runtime=%s, tailwind=%v\n", frameworkType, dirName, useTypeScript, runtime, useTailwind)
 
-			manager := NewFrontendManager(frameworkType, dirName, runtime, useTypeScript)
+			manager := NewFrontendManager(frameworkType, dirName, runtime, useTypeScript, useTailwind)
 			return manager.execute()
 		},
 	}
@@ -94,7 +108,7 @@ func (fm *FrontendManager) execute() error {
 	}
 
 	pg := internal.NewProjectGenerator()
-	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript, fm.Runtime); err != nil {
+	if err := pg.CreateFrontendProject(fm.FrameworkType, fm.DirName, fm.UseTypeScript, fm.Runtime, fm.UseTailwind); err != nil {
 		return fmt.Errorf("failed to create frontend project: %w", err)
 	}
 
@@ -106,38 +120,33 @@ func (fm *FrontendManager) execute() error {
 
 func (fm *FrontendManager) validateSetup() error {
 	switch fm.Runtime {
-	case "node":
+	case node:
 		if !fm.commandExists("node") {
 			return fmt.Errorf("node.js is required but not installed. Please install Node.js from https://nodejs.org/")
 		}
 		if !fm.commandExists("npm") {
 			return fmt.Errorf("npm is required but not installed. Please install npm")
 		}
-	case "deno":
-		if !fm.commandExists("deno") {
-			return fmt.Errorf("deno is required but not installed. Please install Deno from https://deno.land/")
-		}
-	case "bun":
+	case bun:
 		if !fm.commandExists("bun") {
 			return fmt.Errorf("bun is required but not installed. Please install Bun from https://bun.sh/")
 		}
 	default:
-		return fmt.Errorf("unsupported runtime: %s. Supported runtimes: node, deno, bun", fm.Runtime)
+		return fmt.Errorf("unsupported runtime: %s. Supported runtimes: node, bun", fm.Runtime)
 	}
 
 	switch fm.FrameworkType {
 	case "angular":
-		if fm.Runtime == "node" && !fm.commandExists("ng") {
+		if fm.Runtime == node && !fm.commandExists("ng") {
 			fmt.Println("Angular CLI not found. Installing @angular/cli globally...")
 			var cmd *exec.Cmd
 			switch fm.Runtime {
-			case "node":
+			case node:
 				cmd = exec.Command("npm", "install", "-g", "@angular/cli")
-			case "bun":
+			case bun:
 				cmd = exec.Command("bun", "add", "-g", "@angular/cli")
-			case "deno":
-				return fmt.Errorf("angular CLI installation with Deno is not supported")
 			}
+
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to install Angular CLI: %w", err)
 			}
@@ -165,12 +174,10 @@ func (fm *FrontendManager) printInstructions() {
 
 	var devCommand string
 	switch fm.Runtime {
-	case "node":
+	case node:
 		devCommand = "npm run dev"
-	case "bun":
+	case bun:
 		devCommand = "bun run dev"
-	case "deno":
-		devCommand = "deno task dev"
 	default:
 		devCommand = "npm run dev"
 	}
