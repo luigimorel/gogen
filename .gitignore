@@ -4,3 +4,4 @@ bin/
 gogen
 .env
 dist/
+go-ts-types-out

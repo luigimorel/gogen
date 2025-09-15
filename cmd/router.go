@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"time"
 
+	"github.com/luigimorel/gogen/internal/stdlibtemplate"
 	"github.com/urfave/cli/v2"
 )
 
@@ -62,9 +66,10 @@ Usage:
 }
 
 func (r *Router) execute() error {
-	if err := r.validateProject(); err != nil {
-		return err
-	}
+	// A main.go is not required for a valid project, ex packages, creeate it in updatemainFile()
+	// if err := r.validateProject(); err != nil {
+	// 	return err
+	// }
 
 	if err := r.installDependency(); err != nil {
 		return fmt.Errorf("failed to install router dependency: %w", err)
@@ -119,18 +124,55 @@ func (r *Router) installDependency() error {
 }
 
 func (r *Router) updateMainFile() error {
-	mainContent, err := os.ReadFile("main.go")
+	var mainFile *os.File
+	var err error
+
+	mainFile, err = os.Open("main.go")
+	switch {
+	case os.IsNotExist(err):
+		_, err := os.Create("main.go")
+		if err != nil {
+			return fmt.Errorf("failed to create main.go: %w", err)
+		}
+	case err != nil:
+		return fmt.Errorf("failed to check if main.go exists: %w", err)
+	default:
+		backupFile, err := os.Create("main.go.backup")
+		switch {
+		case os.IsExist(err):
+			backupFile, err = os.Create("main.go.backup" + time.Now().Format("20060102150405"))
+			if err != nil {
+				return fmt.Errorf("failed to create backup file: %w", err)
+			}
+		case err != nil:
+			return fmt.Errorf("failed to create backup file: %w", err)
+		default:
+			defer backupFile.Close()
+			_, err = io.Copy(backupFile, mainFile)
+			if err != nil {
+				return fmt.Errorf("failed to copy main.go to backup file: %w", err)
+			}
+		}
+	}
+
+	defer mainFile.Close()
+
+	mainContent := &bytes.Buffer{}
+
+	_, err = io.Copy(mainContent, mainFile)
 	if err != nil {
 		return fmt.Errorf("failed to read main.go: %w", err)
 	}
 
-	newContent := r.generateMainContent(string(mainContent))
+	_, err = mainContent.WriteString(r.generateMainContent(mainContent.String()))
 
-	backupPath := "main.go.backup"
-	if err := os.WriteFile(backupPath, mainContent, 0644); err != nil {
-		fmt.Printf("Warning: failed to create backup at %s: %v\n", backupPath, err)
+	mainFile.Truncate(0)
+	_, err = mainFile.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to seek to beginning of main.go: %w", err)
 	}
-	if err := os.WriteFile("main.go", []byte(newContent), 0644); err != nil {
+	_, err = io.Copy(mainFile, mainContent)
+	if err != nil {
 		return fmt.Errorf("failed to write updated main.go: %w", err)
 	}
 
@@ -140,6 +182,12 @@ func (r *Router) updateMainFile() error {
 func (r *Router) generateMainContent(existingContent string) string {
 	switch r.Type {
 	case "stdlib":
+		// ugly addition as the command currently only support updating a main.go file
+		err := stdlibtemplate.CreateRouterSetup()
+		if err != nil {
+			fmt.Printf("Warning: failed to create router setup: %v", err)
+			return "" // not ideal
+		}
 		return r.generateServeMuxContent()
 	case "chi":
 		return r.generateChiContent()
@@ -186,42 +234,22 @@ func (r *Router) generateServeMuxContent() string {
 	return `package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	"<your-module-name>/router"
 )
 
-type Response struct {
-	Message string ` + "`json:\"message\"`" + `
-	Router  string ` + "`json:\"router\"`" + `
-}
-
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		response := Response{
-			Message: "Hello from http.ServeMux",
-			Router:  "http.ServeMux",
-		}
-		json.NewEncoder(w).Encode(response)
+	// Example of adding a handler to the router
+	router.Router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Hello from the stdlib router!")
 	})
 
-	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		response := Response{
-			Message: "API is healthy",
-			Router:  "http.ServeMux",
-		}
-		json.NewEncoder(w).Encode(response)
-	})
-
-	port := ":8080"
-	fmt.Printf("Starting API server with http.ServeMux on http://localhost%s\n", port)
-	log.Fatal(http.ListenAndServe(port, mux))
+	addr := ":8080"
+	fmt.Printf("Starting server on http://localhost%s\n", addr)
+	log.Fatal(router.Serve(addr))
 }
 `
 }

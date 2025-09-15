@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 
 	"github.com/luigimorel/gogen/internal"
+	"github.com/luigimorel/gogen/internal/constants"
 	"github.com/urfave/cli/v2"
 )
 
@@ -175,16 +177,30 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 
 func (pc *ProjectCreator) initializeGoModule() error {
 	if pc.Template != "web" {
-		moduleName := pc.ModuleName
-		if moduleName == "" {
+		var moduleName string
+		switch {
+		case pc.ModuleName != "":
+			moduleName = pc.ModuleName
+		case pc.Name != "":
 			moduleName = pc.Name
+		default:
+			moduleName = "my-go-module"
+
 		}
-		cmd := exec.Command("go", "mod", "init", moduleName)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to initialize go module: %w", err)
+
+		f, err := os.Create(filepath.Join(pc.DirName, "go.mod"))
+		switch {
+		case os.IsExist(err):
+			return errors.New("a go.mod file already exists in the project directory")
+		case err != nil:
+			return fmt.Errorf("failed to create go.mod file: %w", err)
 		}
+		defer f.Close()
+		_, err = f.WriteString("module " + moduleName + "\n\ngo " + constants.LatestGoVersion)
+		if err != nil {
+			return fmt.Errorf("failed to write to go.mod file: %w", err)
+		}
+
 	}
 	return nil
 }
