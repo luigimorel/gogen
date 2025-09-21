@@ -86,7 +86,13 @@ func (pg *ProjectGenerator) CreateGitignoreFile(dirType, dirName string) error {
 .env.local
 .env.production.local
 .env.*.local
+tmp
 `
+	} else if dirType == "cli" {
+		gitignoreContent = `# Binaries for programs and plugins
+*.exe
+tmp
+main`
 	} else if dirType == "frontend" {
 		gitignoreContent = `logs
 *.log
