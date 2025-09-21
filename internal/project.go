@@ -121,6 +121,14 @@ func main() {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
+	if err := pg.CreateAirFile(".", "cli"); err != nil {
+		fmt.Printf("Warning: failed to create .air.toml file: %v\n", err)
+	}
+
+	if err := pg.CreateGitignoreFile("cli", "."); err != nil {
+		fmt.Printf("Warning: failed to create .gitignore file: %v\n", err)
+	}
+
 	cmd := exec.Command("go", "mod", "tidy")
 	return cmd.Run()
 }
@@ -177,6 +185,7 @@ func (pg *ProjectGenerator) createConfigFiles() error {
 	if err := pg.CreateGitignoreFile("api", "."); err != nil {
 		return fmt.Errorf("warning: failed to create .gitignore file in api: %v", err)
 	}
+
 	return nil
 }
 
@@ -268,6 +277,10 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		if err := os.Chdir(originalDir); err != nil {
 			return fmt.Errorf("failed to change to original directory: %w", err)
 		}
+	}
+
+	if err := pg.CreateAirFile(".", "web"); err != nil {
+		fmt.Printf("Warning: failed to create .air.toml file: %v\n", err)
 	}
 
 	return nil

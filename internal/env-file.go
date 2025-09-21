@@ -81,13 +81,20 @@ export default config;
 func (pg *ProjectGenerator) CreateGitignoreFile(dirType, dirName string) error {
 	var gitignoreContent string
 
-	if dirType == "api" {
+	switch dirType {
+	case "api":
 		gitignoreContent = `.env
 .env.local
 .env.production.local
 .env.*.local
+tmp
 `
-	} else if dirType == "frontend" {
+	case "cli":
+		gitignoreContent = `# Binaries for programs and plugins
+*.exe
+tmp
+main`
+	default:
 		gitignoreContent = `logs
 *.log
 npm-debug.log*
