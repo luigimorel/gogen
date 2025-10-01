@@ -100,6 +100,12 @@ Create an API with Chi router:
 gogen new --name my-api --template api --router chi
 ```
 
+Create a fullstack project with Chi router, docker, bun runtime and React for the frontend:
+
+```bash
+gogen new --name my-app --docker --template web --router chi --ts
+```
+
 Specify custom module name and directory:
 
 ```bash
