@@ -116,7 +116,7 @@ func (pg *ProjectGenerator) installDependencies(runtime, dirName string) error {
 		return fmt.Errorf("failed to change to project directory: %w", err)
 	}
 
-	fmt.Println("Installing dependencies...")
+	fmt.Println("Installing dependencies using " + runtime + "...")
 	installCmd := pg.getInstallCommand(runtime)
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
@@ -159,9 +159,8 @@ func (pg *ProjectGenerator) getSvelteCommand(runtime, dirName, typeOption string
 }
 
 func (pg *ProjectGenerator) getSolidCommand(runtime, dirName, template string) *exec.Cmd {
-	// Validate template to prevent command injection
 	if template != "js" && template != "ts" {
-		template = "js" // default to safe value
+		template = "js"
 	}
 
 	templatePath := "solidjs/templates/" + template

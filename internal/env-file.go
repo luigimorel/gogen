@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	constants "github.com/luigimorel/gogen/consants"
 )
 
 func (pg *ProjectGenerator) CreateEnvFile(dirType, dirName string) error {
 	var envContent string
-	if dirType == "api" {
+	if dirType == constants.APIDir {
 		envContent = `PORT=8080`
 	} else {
 		envContent = `VITE_API_URL=http://localhost:8080
@@ -53,15 +55,6 @@ func (pg *ProjectGenerator) CreateEnvConfig(dirName, framework string, useTypeSc
 	}
 
 	configContent := `/// <reference types="vite/client" />
-
-interface ImportMeta {
-  env: {
-    VITE_API_URL: string;
-    VITE_API_BASE_PATH: string;
-    VITE_NODE_ENV: string;
-  };
-}
-
 export const config = {
   apiUrl: import.meta.env.VITE_API_URL,
   apiBasePath: import.meta.env.VITE_API_BASE_PATH,
