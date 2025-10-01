@@ -3,6 +3,8 @@ package internal
 import (
 	"os"
 	"path/filepath"
+
+	constants "github.com/luigimorel/gogen/consants"
 )
 
 func (pg *ProjectGenerator) CreateAirFile(dirName, dirType string) error {
@@ -60,8 +62,8 @@ tmp_dir = "tmp"
 `
 
 	var filePath string
-	if dirType == "web" {
-		filePath = filepath.Join(dirName, "api", ".air.toml")
+	if dirType == constants.WebTemplate {
+		filePath = filepath.Join(dirName, constants.APIDir, ".air.toml")
 	} else {
 		filePath = filepath.Join(dirName, ".air.toml")
 	}

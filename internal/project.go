@@ -4,10 +4,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	constants "github.com/luigimorel/gogen/consants"
 )
 
 type ProjectGenerator struct {
 	RouterGenerator *RouterGenerator
+}
+
+type WebProjectConfig struct {
+	ProjectName       string
+	ModuleName        string
+	Router            string
+	FrontendFramework string
+	Runtime           string
+	UseTypeScript     bool
+	UseTailwind       bool
+	UseDocker         bool
 }
 
 func NewProjectGenerator() *ProjectGenerator {
@@ -117,15 +130,15 @@ func main() {
 		return err
 	}
 
-	if err := pg.InitGitRepository(projectName, "cli"); err != nil {
+	if err := pg.InitGitRepository(projectName, constants.CLITemplate); err != nil {
 		fmt.Printf("Warning: failed to initialize git repository: %v\n", err)
 	}
 
-	if err := pg.CreateAirFile(".", "cli"); err != nil {
+	if err := pg.CreateAirFile(".", constants.CLITemplate); err != nil {
 		fmt.Printf("Warning: failed to create .air.toml file: %v\n", err)
 	}
 
-	if err := pg.CreateGitignoreFile("cli", "."); err != nil {
+	if err := pg.CreateGitignoreFile(constants.CLITemplate, "."); err != nil {
 		fmt.Printf("Warning: failed to create .gitignore file: %v\n", err)
 	}
 
@@ -133,56 +146,119 @@ func main() {
 	return cmd.Run()
 }
 
-func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework, runtime string, useTypeScript bool, useTailwind bool) error {
-	if err := pg.createAPIProjectInDir("api", projectName, moduleName, router); err != nil {
-		return fmt.Errorf("failed to create API project: %w", err)
+func (pg *ProjectGenerator) CreateWebProject(projectName, moduleName, router, frontendFramework, runtime string, useTypeScript, useTailwind, useDocker bool) error {
+	config := &WebProjectConfig{
+		ProjectName:       projectName,
+		ModuleName:        moduleName,
+		Router:            router,
+		FrontendFramework: frontendFramework,
+		Runtime:           runtime,
+		UseTypeScript:     useTypeScript,
+		UseTailwind:       useTailwind,
+		UseDocker:         useDocker,
 	}
 
-	originalDir, _ := os.Getwd()
-	if err := os.Chdir("api"); err != nil {
-		return fmt.Errorf("failed to change to api directory: %w", err)
+	return pg.CreateWebProjectWithConfig(config)
+}
+
+func (pg *ProjectGenerator) CreateWebProjectWithConfig(config *WebProjectConfig) error {
+	dm, err := NewDirectoryManager()
+	if err != nil {
+		return fmt.Errorf("failed to initialize directory manager: %w", err)
 	}
 
-	if err := pg.createConfigFiles(); err != nil {
-		if chdirErr := os.Chdir(originalDir); chdirErr != nil {
-			return fmt.Errorf("failed to create config files and to change back to original directory: %w, %w", err, chdirErr)
-		}
-		return fmt.Errorf("failed to create config files: %w", err)
+	if err := pg.setupAPIProject(config, dm); err != nil {
+		return fmt.Errorf("failed to setup API project: %w", err)
 	}
 
-	if err := os.Chdir(originalDir); err != nil {
-		return fmt.Errorf("failed to change back to original directory: %w", err)
-	}
-
-	if err := pg.CreateFrontendProject(frontendFramework, "frontend", useTypeScript, runtime, useTailwind); err != nil {
-		return fmt.Errorf("failed to create frontend project: %w", err)
-	}
-
-	if err := os.Chdir("frontend"); err != nil {
-		return fmt.Errorf("failed to change to frontend directory: %w", err)
-	}
-
-	if err := pg.CreateEnvFile("frontend", "."); err != nil {
-		fmt.Printf("Warning: failed to create env file: %v\n", err)
-	}
-
-	if err := pg.CreateEnvConfig(".", frontendFramework, useTypeScript); err != nil {
-		fmt.Printf("Warning: failed to create env config file: %v\n", err)
-	}
-
-	if err := pg.RemoveGitRepository("."); err != nil {
-		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
+	if err := pg.setupFrontendProject(config, dm); err != nil {
+		return fmt.Errorf("failed to setup frontend project: %w", err)
 	}
 
 	return nil
 }
 
+func (pg *ProjectGenerator) setupAPIProject(config *WebProjectConfig, dm *DirectoryManager) error {
+	if err := pg.createAPIProjectInDir(constants.APIDir, config.ProjectName, config.ModuleName, config.Router); err != nil {
+		return fmt.Errorf("failed to create API project: %w", err)
+	}
+
+	if err := dm.ChangeToDir(constants.APIDir); err != nil {
+		return fmt.Errorf("failed to change to API directory: %w", err)
+	}
+	defer func() {
+		if err := dm.RootDir(); err != nil {
+			fmt.Printf("Warning: failed to change root directory: %v\n", err)
+		}
+	}()
+
+	if config.UseDocker {
+		if err := pg.CreateDockerfile(".", constants.APIDir, config.Runtime); err != nil {
+			return fmt.Errorf("failed to create Docker files for API: %w", err)
+		}
+
+		if err := pg.CreateDockerComposeFile(".."); err != nil {
+			return fmt.Errorf("failed to create docker-compose files: %w", err)
+		}
+	}
+
+	if err := pg.createConfigFiles(); err != nil {
+		return fmt.Errorf("failed to create config files: %w", err)
+	}
+
+	return nil
+}
+
+func (pg *ProjectGenerator) setupFrontendProject(config *WebProjectConfig, dm *DirectoryManager) error {
+	if err := dm.RootDir(); err != nil {
+		return fmt.Errorf("failed to change to root directory before frontend setup: %w", err)
+	}
+
+	if err := pg.CreateFrontendProject(config.FrontendFramework, constants.FrontendDir, config.UseTypeScript, config.Runtime, config.UseTailwind); err != nil {
+		return fmt.Errorf("failed to create frontend project: %w", err)
+	}
+
+	if err := dm.ChangeToDir(constants.FrontendDir); err != nil {
+		return fmt.Errorf("failed to change to frontend directory: %w", err)
+	}
+
+	pg.createFrontendConfigFiles(config)
+
+	defer func() {
+		if restoreErr := dm.RootDir(); restoreErr != nil {
+			fmt.Printf("Warning: failed to change to root directory: %v\n", restoreErr)
+		}
+	}()
+
+	return nil
+}
+
+func (pg *ProjectGenerator) createFrontendConfigFiles(config *WebProjectConfig) {
+	if err := pg.CreateEnvFile(constants.FrontendDir, "."); err != nil {
+		fmt.Printf("Warning: failed to create env file: %v\n", err)
+	}
+
+	if err := pg.CreateEnvConfig(".", config.FrontendFramework, config.UseTypeScript); err != nil {
+		fmt.Printf("Warning: failed to create env config file: %v\n", err)
+	}
+
+	if config.UseDocker {
+		if err := pg.CreateDockerfile(".", constants.FrontendDir, config.Runtime); err != nil {
+			fmt.Printf("Warning: failed to create Docker files for frontend: %v\n", err)
+		}
+	}
+
+	if err := pg.RemoveGitRepository("."); err != nil {
+		fmt.Printf("Warning: failed to remove git repository from frontend: %v\n", err)
+	}
+}
+
 func (pg *ProjectGenerator) createConfigFiles() error {
-	if err := pg.CreateEnvFile("api", "."); err != nil {
+	if err := pg.CreateEnvFile(constants.APIDir, "."); err != nil {
 		return fmt.Errorf("warning: failed to create env file in api: %v", err)
 	}
 
-	if err := pg.CreateGitignoreFile("api", "."); err != nil {
+	if err := pg.CreateGitignoreFile(constants.APIDir, "."); err != nil {
 		return fmt.Errorf("warning: failed to create .gitignore file in api: %v", err)
 	}
 
@@ -248,7 +324,7 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		return err
 	}
 
-	if err := pg.CreateEnvFile("api", baseDir); err != nil {
+	if err := pg.CreateEnvFile(constants.APIDir, baseDir); err != nil {
 		fmt.Printf("Warning: failed to create env file: %v\n", err)
 	}
 
@@ -279,7 +355,7 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		}
 	}
 
-	if err := pg.CreateAirFile(".", "web"); err != nil {
+	if err := pg.CreateAirFile(".", constants.WebTemplate); err != nil {
 		fmt.Printf("Warning: failed to create .air.toml file: %v\n", err)
 	}
 

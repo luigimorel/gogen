@@ -7,12 +7,8 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	constants "github.com/luigimorel/gogen/consants"
 	"github.com/luigimorel/gogen/internal"
-)
-
-// Template constants
-const (
-	TemplateWeb = "web"
 )
 
 type ProjectCreator struct {
@@ -26,9 +22,10 @@ type ProjectCreator struct {
 	Runtime           string
 	UseTailwind       bool
 	Editor            string
+	UseDocker         bool
 }
 
-func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir, runtime, editor string, useTypeScript, useTailwind bool) *ProjectCreator {
+func NewProjectCreator(name, moduleName, template, router, frontendFramework, projectDir, runtime, editor string, useTypeScript, useTailwind, useDocker bool) *ProjectCreator {
 	if projectDir == "" {
 		projectDir = name
 	}
@@ -44,6 +41,7 @@ func NewProjectCreator(name, moduleName, template, router, frontendFramework, pr
 		Runtime:           runtime,
 		UseTailwind:       useTailwind,
 		Editor:            editor,
+		UseDocker:         useDocker,
 	}
 }
 
@@ -105,6 +103,11 @@ This command will create a new directory, initialize a Go module, and create a n
 				Name:  "editor",
 				Usage: "Add an LLM template for the specified editor (cursor, vscode, jetbrains)",
 			},
+			&cli.BoolFlag{
+				Name:  "docker",
+				Usage: "Adds Docker and docker compose files to the project",
+				Value: false,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			projectName := c.String("name")
@@ -117,14 +120,15 @@ This command will create a new directory, initialize a Go module, and create a n
 			runtime := c.String("runtime")
 			useTailwind := c.Bool("tailwind")
 			editor := c.String("editor")
+			useDocker := c.Bool("docker")
 
 			// Check if runtime was explicitly set by user
 			runtimeExplicitlySet := c.IsSet("runtime")
-			if runtimeExplicitlySet && template != TemplateWeb {
+			if runtimeExplicitlySet && template != constants.WebTemplate {
 				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
 			}
 
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind)
+			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind, useDocker)
 			return creator.execute()
 		},
 	}
@@ -169,7 +173,7 @@ func (pc *ProjectCreator) execute() error {
 }
 
 func (pc *ProjectCreator) validate() error {
-	if pc.FrontendFramework != "" && pc.Template != TemplateWeb {
+	if pc.FrontendFramework != "" && pc.Template != constants.WebTemplate {
 		return fmt.Errorf("frontend flag is only applicable when template is 'web'")
 	}
 
@@ -207,7 +211,7 @@ func (pc *ProjectCreator) ChangeToProjectDirectory() (string, func(), error) {
 }
 
 func (pc *ProjectCreator) initializeGoModule() error {
-	if pc.Template != TemplateWeb {
+	if pc.Template != constants.WebTemplate {
 		moduleName := pc.ModuleName
 		if moduleName == "" {
 			moduleName = pc.Name
@@ -226,11 +230,11 @@ func (pc *ProjectCreator) createProjectFiles() error {
 	pg := internal.NewProjectGenerator()
 
 	switch pc.Template {
-	case "cli":
+	case constants.CLITemplate:
 		return pg.CreateCLIProject(pc.Name, pc.ModuleName)
-	case TemplateWeb:
-		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.Runtime, pc.UseTypeScript, pc.UseTailwind)
-	case "api":
+	case constants.WebTemplate:
+		return pg.CreateWebProject(pc.Name, pc.ModuleName, pc.Router, pc.FrontendFramework, pc.Runtime, pc.UseTypeScript, pc.UseTailwind, pc.UseDocker)
+	case constants.APIDir:
 		return pg.CreateAPIProject(pc.Name, pc.ModuleName, pc.Router)
 	default:
 		return fmt.Errorf("unsupported template: %s", pc.Template)
@@ -255,7 +259,7 @@ func (pc *ProjectCreator) printNextSteps() {
 	fmt.Println("\nNext steps:")
 	fmt.Printf("   cd %s\n", pc.Name)
 
-	if pc.Template == TemplateWeb {
+	if pc.Template == constants.APIDir {
 		fmt.Println("   cd api")
 		fmt.Println("   go run main.go")
 		if pc.FrontendFramework != "" {
