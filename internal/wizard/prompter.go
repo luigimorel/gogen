@@ -7,16 +7,16 @@ type Prompter interface {
 }
 
 type Choice struct {
-	Value 		string
+	Value		string
 	Label		string
-	Description string
+	Description	string
 }
 
 type InputOption func(*inputConfig)
 
 type inputConfig struct {
-	Default     string
-	Validate   	func(string) error
-	AllowEmpty 	bool
-	Placeholder string
+	Default		string
+	Validate	func(string) error
+	AllowEmpty	bool
+	Placeholder	string
 }
