@@ -9,6 +9,7 @@ import (
 
 	constants "github.com/luigimorel/gogen/consants"
 	"github.com/luigimorel/gogen/internal"
+	"github.com/luigimorel/gogen/internal/wizard"
 )
 
 type ProjectCreator struct {
@@ -108,30 +109,77 @@ This command will create a new directory, initialize a Go module, and create a n
 				Usage: "Adds Docker and docker compose files to the project",
 				Value: false,
 			},
+			// New interactive flag
+			&cli.BoolFlag{
+				Name:  "interactive",
+				Usage: "Launch interactive project setup wizard",
+				Value: false,
+			},
 		},
 		Action: func(c *cli.Context) error {
-			projectName := c.String("name")
-			moduleName := c.String("module")
-			template := c.String("template")
-			router := c.String("router")
-			frontend := c.String("frontend")
-			projectDir := c.String("dir")
-			useTypeScript := c.Bool("ts")
-			runtime := c.String("runtime")
-			useTailwind := c.Bool("tailwind")
-			editor := c.String("editor")
-			useDocker := c.Bool("docker")
-
-			// Check if runtime was explicitly set by user
-			runtimeExplicitlySet := c.IsSet("runtime")
-			if runtimeExplicitlySet && template != constants.WebTemplate {
-				return fmt.Errorf("runtime flag is only applicable when template is 'web'")
+			if c.Bool("interactive") {
+				cfg, err := wizard.RunInteractive()
+				if err != nil {
+					return err
+				}
+				return runGenerationFromConfig(cfg)
 			}
-
-			creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind, useDocker)
-			return creator.execute()
+			return runNonInteractive(c)
 		},
 	}
+}
+
+// runNonInteractive contains the previous inline Action logic for non-interactive flow.
+func runNonInteractive(c *cli.Context) error {
+	projectName := c.String("name")
+	moduleName := c.String("module")
+	template := c.String("template")
+	router := c.String("router")
+	frontend := c.String("frontend")
+	projectDir := c.String("dir")
+	useTypeScript := c.Bool("ts")
+	runtime := c.String("runtime")
+	useTailwind := c.Bool("tailwind")
+	editor := c.String("editor")
+	useDocker := c.Bool("docker")
+
+	// Check if runtime was explicitly set by user
+	runtimeExplicitlySet := c.IsSet("runtime")
+	if runtimeExplicitlySet && template != constants.WebTemplate {
+		return fmt.Errorf("runtime flag is only applicable when template is 'web'")
+	}
+
+	creator := NewProjectCreator(projectName, moduleName, template, router, frontend, projectDir, runtime, editor, useTypeScript, useTailwind, useDocker)
+	return creator.execute()
+}
+
+// runGenerationFromConfig converts the wizard result into the existing generation pipeline.
+// Expecting wizard.RunInteractive to return *wizard.ProjectConfig (or adjust if different).
+func runGenerationFromConfig(cfg *wizard.ProjectConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("wizard returned nil configuration")
+	}
+
+	// Validate runtime applicability consistent with non-interactive logic
+	if cfg.Runtime != "" && cfg.Template != constants.WebTemplate {
+		return fmt.Errorf("runtime option is only applicable when template is 'web'")
+	}
+
+	creator := NewProjectCreator(
+		cfg.Name,
+		cfg.Module,
+		cfg.Template,
+		cfg.Router,
+		cfg.Frontend,
+		cfg.Dir,
+		cfg.Runtime,
+		cfg.Editor,
+		cfg.TypeScript,
+		cfg.Tailwind,
+		cfg.Docker,
+	)
+
+	return creator.execute()
 }
 
 func (pc *ProjectCreator) execute() error {
