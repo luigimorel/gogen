@@ -1,3 +1,4 @@
+//nolint:depguard
 package wizard
 
 import (
@@ -7,6 +8,12 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
+)
+
+const (
+	templateAPI = "api"
+	templateWeb = "web"
+	templateCLI = "cli"
 )
 
 var projectNameRe = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
@@ -20,135 +27,32 @@ func RunInteractive() (*ProjectConfig, error) {
 func RunInteractiveWithPrompter(p Prompter) (*ProjectConfig, error) {
 	cfg := &ProjectConfig{}
 
-	var err error
-	if cfg.Name, err = p.Input("Project name:", withValidate(validateProjectName)); err != nil {
-		if errors.Is(err, terminal.InterruptErr) {
-			return nil, fmt.Errorf("aborted by user")
-		}
-		return nil, err
-	}
-	// Directory defaults to name
-	cfg.Dir = cfg.Name
-
-	templateChoices := []Choice{
-		{Value: "api", Label: "api", Description: "REST API server"},
-		{Value: "web", Label: "web", Description: "Web server (optionally with frontend)"},
-		{Value: "cli", Label: "cli", Description: "Command-line application"},
-	}
-	if cfg.Template, err = p.Select("Choose a template:", templateChoices); err != nil {
-		if errors.Is(err, terminal.InterruptErr) {
-			return nil, fmt.Errorf("aborted by user")
-		}
+	if err := askProjectName(p, cfg); err != nil {
 		return nil, err
 	}
 
-	// Router for api or web
-	if cfg.Template == "api" || cfg.Template == "web" {
-		routerChoices := []Choice{
-			{Value: "stdlib", Label: "stdlib", Description: "Go standard library"},
-			{Value: "chi", Label: "chi", Description: "Lightweight router"},
-			{Value: "gorilla", Label: "gorilla", Description: "Gorilla Mux"},
-			{Value: "httprouter", Label: "httprouter", Description: "High performance"},
-		}
-		if cfg.Router, err = p.Select("Select a router:", routerChoices); err != nil {
-			if errors.Is(err, terminal.InterruptErr) {
-				return nil, fmt.Errorf("aborted by user")
-			}
-			return nil, err
-		}
-	}
-
-	if cfg.Template == "web" {
-		hasFrontend, err := p.Confirm("Add a frontend framework?", true)
-		if err != nil {
-			if errors.Is(err, terminal.InterruptErr) {
-				return nil, fmt.Errorf("aborted by user")
-			}
-			return nil, err
-		}
-		if hasFrontend {
-			feChoices := []Choice{
-				{Value: "react", Label: "react", Description: "React + Vite"},
-				{Value: "vue", Label: "vue", Description: "Vue 3 + Vite"},
-				{Value: "svelte", Label: "svelte", Description: "Svelte + Vite"},
-				{Value: "solidjs", Label: "solidjs", Description: "SolidJS + Vite"},
-				{Value: "angular", Label: "angular", Description: "Angular CLI"},
-			}
-			if cfg.Frontend, err = p.Select("Choose a frontend:", feChoices); err != nil {
-				if errors.Is(err, terminal.InterruptErr) {
-					return nil, fmt.Errorf("aborted by user")
-				}
-				return nil, err
-			}
-			// Runtime
-			if cfg.Runtime, err = p.Select("JS runtime:", []Choice{
-				{Value: "node", Label: "node", Description: "Default Node.js"},
-				{Value: "bun", Label: "bun", Description: "Bun runtime"},
-			}); err != nil {
-				if errors.Is(err, terminal.InterruptErr) {
-					return nil, fmt.Errorf("aborted by user")
-				}
-				return nil, err
-			}
-			if cfg.Frontend != "angular" { // Angular = TS by default
-				if cfg.TypeScript, err = p.Confirm("Use TypeScript?", true); err != nil {
-					if errors.Is(err, terminal.InterruptErr) {
-						return nil, fmt.Errorf("aborted by user")
-					}
-					return nil, err
-				}
-			} else {
-				cfg.TypeScript = true
-			}
-			if cfg.Tailwind, err = p.Confirm("Add Tailwind CSS?", false); err != nil {
-				if errors.Is(err, terminal.InterruptErr) {
-					return nil, fmt.Errorf("aborted by user")
-				}
-				return nil, err
-			}
-		}
-	}
-
-	if cfg.Template != "cli" { // Editor integration might be useful more broadly, optional
-		addEditor, err := p.Confirm("Add editor AI template (cursor/vscode/jetbrains)?", false)
-		if err != nil {
-			if errors.Is(err, terminal.InterruptErr) {
-				return nil, fmt.Errorf("aborted by user")
-			}
-			return nil, err
-		}
-		if addEditor {
-			if cfg.Editor, err = p.Input("Editor (cursor/vscode/jetbrains):", withValidate(validateEditor)); err != nil {
-				if errors.Is(err, terminal.InterruptErr) {
-					return nil, fmt.Errorf("aborted by user")
-				}
-				return nil, err
-			}
-		}
-	}
-
-	if cfg.Docker, err = p.Confirm("Add Docker support?", true); err != nil {
-		if errors.Is(err, terminal.InterruptErr) {
-			return nil, fmt.Errorf("aborted by user")
-		}
+	if err := askTemplate(p, cfg); err != nil {
 		return nil, err
 	}
 
-	// Optional module path
-	useModule, err := p.Confirm("Specify a custom Go module path?", false)
-	if err != nil {
-		if errors.Is(err, terminal.InterruptErr) {
-			return nil, fmt.Errorf("aborted by user")
-		}
+	if err := askRouter(p, cfg); err != nil {
 		return nil, err
 	}
-	if useModule {
-		if cfg.Module, err = p.Input("Module path (e.g. github.com/user/"+cfg.Name+"):", withValidate(validateModule)); err != nil {
-			if errors.Is(err, terminal.InterruptErr) {
-				return nil, fmt.Errorf("aborted by user")
-			}
-			return nil, err
-		}
+
+	if err := askFrontendOptions(p, cfg); err != nil {
+		return nil, err
+	}
+
+	if err := askEditor(p, cfg); err != nil {
+		return nil, err
+	}
+
+	if err := askDocker(p, cfg); err != nil {
+		return nil, err
+	}
+
+	if err := askModule(p, cfg); err != nil {
+		return nil, err
 	}
 
 	printSummary(cfg)
@@ -164,6 +68,157 @@ func RunInteractiveWithPrompter(p Prompter) (*ProjectConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func handleInterrupt(err error) error {
+	if errors.Is(err, terminal.InterruptErr) {
+		return fmt.Errorf("aborted by user")
+	}
+	return err
+}
+
+func askProjectName(p Prompter, cfg *ProjectConfig) error {
+	name, err := p.Input("Project name:", withValidate(validateProjectName))
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Name = name
+	cfg.Dir = name // Directory defaults to name
+	return nil
+}
+
+func askTemplate(p Prompter, cfg *ProjectConfig) error {
+	templateChoices := []Choice{
+		{Value: templateAPI, Label: templateAPI, Description: "REST API server"},
+		{Value: templateWeb, Label: templateWeb, Description: "Web server (optionally with frontend)"},
+		{Value: templateCLI, Label: templateCLI, Description: "Command-line application"},
+	}
+	template, err := p.Select("Choose a template:", templateChoices)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Template = template
+	return nil
+}
+
+func askRouter(p Prompter, cfg *ProjectConfig) error {
+	// Router for api or web
+	if cfg.Template == templateAPI || cfg.Template == templateWeb {
+		routerChoices := []Choice{
+			{Value: "stdlib", Label: "stdlib", Description: "Go standard library"},
+			{Value: "chi", Label: "chi", Description: "Lightweight router"},
+			{Value: "gorilla", Label: "gorilla", Description: "Gorilla Mux"},
+			{Value: "httprouter", Label: "httprouter", Description: "High performance"},
+		}
+		router, err := p.Select("Select a router:", routerChoices)
+		if err != nil {
+			return handleInterrupt(err)
+		}
+		cfg.Router = router
+	}
+	return nil
+}
+
+func askFrontendOptions(p Prompter, cfg *ProjectConfig) error {
+	if cfg.Template != templateWeb {
+		return nil
+	}
+
+	hasFrontend, err := p.Confirm("Add a frontend framework?", true)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	if !hasFrontend {
+		return nil
+	}
+
+	feChoices := []Choice{
+		{Value: "react", Label: "react", Description: "React + Vite"},
+		{Value: "vue", Label: "vue", Description: "Vue 3 + Vite"},
+		{Value: "svelte", Label: "svelte", Description: "Svelte + Vite"},
+		{Value: "solidjs", Label: "solidjs", Description: "SolidJS + Vite"},
+		{Value: "angular", Label: "angular", Description: "Angular CLI"},
+	}
+	frontend, err := p.Select("Choose a frontend:", feChoices)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Frontend = frontend
+
+	// Runtime
+	runtime, err := p.Select("JS runtime:", []Choice{
+		{Value: "node", Label: "node", Description: "Default Node.js"},
+		{Value: "bun", Label: "bun", Description: "Bun runtime"},
+	})
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Runtime = runtime
+
+	if cfg.Frontend != "angular" { // Angular = TS by default
+		ts, err := p.Confirm("Use TypeScript?", true)
+		if err != nil {
+			return handleInterrupt(err)
+		}
+		cfg.TypeScript = ts
+	} else {
+		cfg.TypeScript = true
+	}
+
+	tailwind, err := p.Confirm("Add Tailwind CSS?", false)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Tailwind = tailwind
+
+	return nil
+}
+
+func askEditor(p Prompter, cfg *ProjectConfig) error {
+	if cfg.Template == templateCLI { // Editor integration might be useful more broadly, optional
+		return nil
+	}
+
+	addEditor, err := p.Confirm("Add editor AI template (cursor/vscode/jetbrains)?", false)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	if !addEditor {
+		return nil
+	}
+
+	editor, err := p.Input("Editor (cursor/vscode/jetbrains):", withValidate(validateEditor))
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Editor = editor
+	return nil
+}
+
+func askDocker(p Prompter, cfg *ProjectConfig) error {
+	docker, err := p.Confirm("Add Docker support?", true)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Docker = docker
+	return nil
+}
+
+func askModule(p Prompter, cfg *ProjectConfig) error {
+	useModule, err := p.Confirm("Specify a custom Go module path?", false)
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	if !useModule {
+		return nil
+	}
+
+	module, err := p.Input("Module path (e.g. github.com/user/"+cfg.Name+"):", withValidate(validateModule))
+	if err != nil {
+		return handleInterrupt(err)
+	}
+	cfg.Module = module
+	return nil
 }
 
 func printSummary(c *ProjectConfig) {
