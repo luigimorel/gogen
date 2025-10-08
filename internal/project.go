@@ -275,7 +275,7 @@ func (pg *ProjectGenerator) createAPIProjectInDir(baseDir, projectName, moduleNa
 		cmdWebDir = "cmd/web"
 	}
 
-	if err := os.MkdirAll(cmdWebDir, 0755); err != nil {
+	if err := os.MkdirAll(cmdWebDir, 0750); err != nil {
 		return fmt.Errorf("failed to create cmd/web directory: %w", err)
 	}
 

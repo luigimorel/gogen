@@ -21,7 +21,7 @@ func (lt *LLMTemplate) CreateTemplate(template, frontendFramework, runtime, rout
 		content = lt.generateCursorContent(frontendFramework, runtime, router)
 		filePath = ".cursorrules"
 	case "vscode":
-		if err := os.MkdirAll(".vscode", 0755); err != nil {
+		if err := os.MkdirAll(".vscode", 0750); err != nil {
 			return fmt.Errorf("failed to create .vscode directory: %w", err)
 		}
 		content = lt.generateVSCodeContent(frontendFramework, runtime, router)
