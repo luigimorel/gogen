@@ -3,7 +3,7 @@ BINARY_PATH=./bin/$(BINARY_NAME)
 MAIN_PATH=./main.go
 TMP_BINARY=./tmp/$(BINARY_NAME)
 
-.PHONY: all build build-dev run dev test test-verbose test-coverage fmt lint vet check deps tidy clean install build-all
+.PHONY: all build build-dev run dev test test-verbose test-coverage fmt lint lint-install vet check deps tidy clean install build-all
 
 all: build
 
@@ -42,7 +42,6 @@ fmt:
 
 lint:
 	golangci-lint run
-
 vet:
 	go vet ./...
 

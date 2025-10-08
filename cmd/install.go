@@ -108,7 +108,7 @@ func (i *Installer) binaryInstall() error {
 		return nil
 	}
 
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	if err := os.MkdirAll(binDir, 0o600); err != nil {
 		return fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
@@ -120,7 +120,7 @@ func (i *Installer) binaryInstall() error {
 	}
 
 	if runtime.GOOS != PlatformWindows {
-		if err := os.Chmod(binPath, 0755); err != nil {
+		if err := os.Chmod(binPath, 0o600); err != nil {
 			return fmt.Errorf("failed to make binary executable: %w", err)
 		}
 	}
@@ -193,10 +193,14 @@ func (i *Installer) getDownloadURL() string {
 		filename += ".exe"
 	}
 
-	return fmt.Sprintf("https://github.com/luigimorel/gogen/releases/%s/download/%s", version, filename)
+	return fmt.Sprintf(
+		"https://github.com/luigimorel/gogen/releases/%s/download/%s",
+		version,
+		filename,
+	)
 }
 
-func (i *Installer) downloadFile(downloadURL, filepath string) error {
+func (i *Installer) downloadFile(downloadURL, filePath string) error {
 	u, err := url.Parse(downloadURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
@@ -210,17 +214,27 @@ func (i *Installer) downloadFile(downloadURL, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("failed to close the request body: %s", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download: HTTP %d", resp.StatusCode)
 	}
 
-	out, err := os.Create(filepath)
+	baseDir := "."
+	cleanPath := filepath.Clean(filepath.Join(baseDir, filePath))
+	out, err := os.Create(cleanPath)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if cerr := out.Close(); cerr != nil {
+			fmt.Printf("failed to close file: %s", cerr)
+		}
+	}()
 
 	_, err = io.Copy(out, resp.Body)
 	return err

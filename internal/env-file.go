@@ -29,7 +29,7 @@ VITE_NODE_ENV=development
 		envPath = ".env"
 	}
 
-	if err := os.MkdirAll(filepath.Dir(envExamplePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(envExamplePath), 0750); err != nil {
 		return fmt.Errorf("failed to create directory for env files: %w", err)
 	}
 
@@ -113,7 +113,7 @@ dist-ssr
 		gitignorePath = ".gitignore"
 	}
 
-	if err := os.MkdirAll(filepath.Dir(gitignorePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(gitignorePath), 0750); err != nil {
 		return fmt.Errorf("failed to create directory for .gitignore: %w", err)
 	}
 
