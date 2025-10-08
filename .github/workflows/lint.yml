@@ -36,9 +36,8 @@ jobs:
         run: staticcheck ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          # Use golangci-lint v2 explicitly
           version: v2.0.0
           args: --timeout=5m
 
