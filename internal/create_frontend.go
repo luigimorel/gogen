@@ -32,7 +32,7 @@ func (pg *ProjectGenerator) CreateFrontendProject(framework, dirName string, use
 		node: "npm",
 	}[runtime]
 
-	//TODO: Remove directory if it exists?
+	// TODO: Remove directory if it exists?
 	if _, err := os.Stat(dirName); err == nil {
 		fmt.Printf("Directory %s already exists, removing...\n", dirName)
 	}

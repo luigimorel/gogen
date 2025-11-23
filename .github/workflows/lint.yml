@@ -36,9 +36,9 @@ jobs:
         run: staticcheck ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.0.0
           args: --timeout=5m
 
       - name: Check formatting

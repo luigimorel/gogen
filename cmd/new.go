@@ -189,7 +189,7 @@ func (pc *ProjectCreator) validate() error {
 }
 
 func (pc *ProjectCreator) createProjectDirectory() error {
-	if err := os.Mkdir(pc.DirName, 0755); err != nil {
+	if err := os.Mkdir(pc.DirName, 0750); err != nil {
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 	return nil

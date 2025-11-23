@@ -4,3 +4,8 @@ bin/
 gogen
 .env
 dist/
+.vscode/
+.idea/
+.DS_Store
+*.log
+*.exe

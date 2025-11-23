@@ -1,45 +1,34 @@
+version: "2"
+
 run:
   timeout: 5m
   issues-exit-code: 1
   tests: true
   modules-download-mode: readonly
 
-output:
-  formats:
-    - format: colored-line-number
-
-linters-settings:
-  depguard:
-    rules:
-      main:
-        files:
-          - $all
-        allow:
-          - $gostd
-          - github.com/luigimorel/gogen
-          - github.com/urfave/cli/v2
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/luigimorel/gogen
-  misspell:
-    locale: US
-
 linters:
+  settings:
+    depguard:
+      rules:
+        main:
+          list-mode: lax
+          files:
+            - $all
+          allow:
+            - $gostd
+            - github.com/luigimorel/gogen
+            - github.com/urfave/cli/v2
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - goconst
-    - gosec
     - unconvert
     - dupl
+    - misspell
     - gocritic
     - gocyclo
     - whitespace
@@ -54,15 +43,3 @@ linters:
     - godot
     - godox
     - nestif
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - dupl
-    - linters:
-        - lll
-      source: "^//go:generate "
-  max-issues-per-linter: 0
-  max-same-issues: 0
