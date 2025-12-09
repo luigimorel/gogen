@@ -2,6 +2,7 @@ BINARY_NAME=gogen
 BINARY_PATH=./bin/$(BINARY_NAME)
 MAIN_PATH=./main.go
 TMP_BINARY=./tmp/$(BINARY_NAME)
+TAG:=$(shell git describe --tags --abbrev=0)
 
 .PHONY: all build build-dev run dev test test-verbose test-coverage fmt lint lint-install vet check deps tidy clean install build-all
 
@@ -9,7 +10,7 @@ all: build
 
 build:
 	@mkdir -p bin
-	go build -o $(BINARY_PATH) $(MAIN_PATH)
+	go build -ldflags "-X github.com/luigimorel/gogen/cmd.Tag=$(TAG)" -o $(BINARY_PATH) $(MAIN_PATH)
 
 build-dev:
 	@mkdir -p tmp
@@ -17,10 +18,10 @@ build-dev:
 
 build-all:
 	@mkdir -p bin
-	GOOS=linux GOARCH=amd64 go build -o bin/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
-	GOOS=darwin GOARCH=amd64 go build -o bin/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
-	GOOS=darwin GOARCH=arm64 go build -o bin/$(BINARY_NAME)-darwin-arm64 $(MAIN_PATH)
-	GOOS=windows GOARCH=amd64 go build -o bin/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
+	GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/luigimorel/gogen/cmd.Tag=$(TAG)" -o bin/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
+	GOOS=darwin GOARCH=amd64 go build -ldflags "-X github.com/luigimorel/gogen/cmd.Tag=$(TAG)" -o bin/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
+	GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/luigimorel/gogen/cmd.Tag=$(TAG)" -o bin/$(BINARY_NAME)-darwin-arm64 $(MAIN_PATH)
+	GOOS=windows GOARCH=amd64 go build -ldflags "-X github.com/luigimorel/gogen/cmd.Tag=$(TAG)" -o bin/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
 
 run: build
 	$(BINARY_PATH)
